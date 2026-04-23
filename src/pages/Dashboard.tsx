@@ -8,6 +8,7 @@ import {
   useArWeeklyOverride,
   useAssumptions,
   useFutureHires,
+  useHirePayrollOverride,
   useSaveForecastSnapshot,
   useUpdateWeeklyActual,
   useWeeklyActuals,
@@ -60,6 +61,7 @@ export default function Dashboard() {
   const { data: hires, isLoading: hLoading } = useFutureHires();
   const { data: actualsData } = useWeeklyActuals();
   const { data: arOverride } = useArWeeklyOverride();
+  const { data: hireOverride } = useHirePayrollOverride();
   const updateActual = useUpdateWeeklyActual();
   const saveSnapshot = useSaveForecastSnapshot();
 
@@ -81,9 +83,10 @@ export default function Dashboard() {
       })) ?? [],
       13,
       undefined,
-      arOverride ? { weeks: arOverride.weeks, delay_days: arOverride.delay_days } : null
+      arOverride ? { weeks: arOverride.weeks, delay_days: arOverride.delay_days } : null,
+      hireOverride ? { weeks: hireOverride.weeks } : null
     );
-  }, [assumptions, arEntries, hires, arOverride]);
+  }, [assumptions, arEntries, hires, arOverride, hireOverride]);
 
   if (loading || !forecast) {
     return (

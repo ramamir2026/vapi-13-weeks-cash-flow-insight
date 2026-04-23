@@ -129,13 +129,18 @@ export interface ArOverride {
   delay_days: number;
 }
 
+export interface HireOverride {
+  weeks: number[]; // length = weeksCount, totals at payroll-week indices (W2/4/6/8/10/12)
+}
+
 export const buildForecast = (
   assumptions: AssumptionMap,
   arEntries: ARForecastEntry[],
   hires: HireForecastEntry[],
   weeksCount = 13,
   startDate?: Date,
-  arOverride?: ArOverride | null
+  arOverride?: ArOverride | null,
+  hireOverride?: HireOverride | null
 ): ForecastResult => {
   const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
 
@@ -264,8 +269,12 @@ export const buildForecast = (
     let payroll = 0;
     if (PAYROLL_WEEKS.has(weekNum)) {
       payroll = payrollSemi + payrollFee;
-      const activeHires = hires.filter((h) => new Date(h.start_date) <= weekEnd);
-      payroll += activeHires.reduce((s, h) => s + Number(h.annual_salary) / 24, 0);
+      if (hireOverride?.weeks?.[i] != null) {
+        payroll += Number(hireOverride.weeks[i]) || 0;
+      } else {
+        const activeHires = hires.filter((h) => new Date(h.start_date) <= weekEnd);
+        payroll += activeHires.reduce((s, h) => s + Number(h.annual_salary) / 24, 0);
+      }
     }
 
     // COGS total

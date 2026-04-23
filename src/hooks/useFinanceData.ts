@@ -104,6 +104,8 @@ export const useDeleteArEntry = () => {
 };
 
 // ============ Future hires ============
+export type HireStatus = "confirmed" | "offer_sent" | "interviewing";
+
 export type FutureHire = {
   id: string;
   name: string;
@@ -111,6 +113,7 @@ export type FutureHire = {
   department: string | null;
   start_date: string;
   annual_salary: number;
+  status: HireStatus;
   notes: string | null;
 };
 
@@ -221,6 +224,65 @@ export const useApplyArOverride = () => {
       qc.invalidateQueries({ queryKey: ["ar_weekly_overrides"] });
       qc.invalidateQueries({ queryKey: ["ar_entries"] });
       toast.success("Applied to model");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+};
+
+// ============ Hire payroll overrides ============
+export type HirePayrollOverride = {
+  id: string;
+  forecast_start: string;
+  weeks: number[];
+  periods: Array<{ key: string; total: number }>;
+  created_at: string;
+};
+
+export const useHirePayrollOverride = () =>
+  useQuery({
+    queryKey: ["hire_payroll_overrides", currentForecastStartISO()],
+    queryFn: async () => {
+      const start = currentForecastStartISO();
+      const { data, error } = await supabase
+        .from("hire_payroll_overrides")
+        .select("*")
+        .eq("forecast_start", start)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        id: data.id,
+        forecast_start: data.forecast_start,
+        weeks: (data.weeks as unknown as number[]) ?? new Array(13).fill(0),
+        periods: (data.periods as unknown as Array<{ key: string; total: number }>) ?? [],
+        created_at: data.created_at,
+      } as HirePayrollOverride;
+    },
+  });
+
+export const useApplyHirePayrollOverride = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      weeks,
+      periods,
+    }: {
+      weeks: number[];
+      periods: Array<{ key: string; total: number }>;
+    }) => {
+      const start = currentForecastStartISO();
+      const { error } = await supabase.from("hire_payroll_overrides").insert({
+        forecast_start: start,
+        weeks: weeks as any,
+        periods: periods as any,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hire_payroll_overrides"] });
+      toast.success("Payroll impact applied to model");
     },
     onError: (e: Error) => toast.error(e.message),
   });
