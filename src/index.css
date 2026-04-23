@@ -56,6 +56,18 @@
     --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
     --shadow-card: 0 1px 3px 0 hsl(222 47% 11% / 0.06), 0 1px 2px -1px hsl(222 47% 11% / 0.06);
     --shadow-elevated: 0 4px 12px -2px hsl(222 47% 11% / 0.08);
+
+    /* Forecast grid color coding */
+    --input-blue: 210 100% 96%;
+    --input-blue-fg: 217 91% 35%;
+    --estimate-yellow: 50 100% 95%;
+    --estimate-yellow-fg: 38 92% 30%;
+    --link-green: 140 50% 35%;
+    --inflow-green: 140 60% 92%;
+    --inflow-green-fg: 140 60% 22%;
+    --outflow-red: 0 70% 95%;
+    --outflow-red-fg: 0 70% 35%;
+    --warn-amber: 35 100% 50%;
   }
 
   .dark {

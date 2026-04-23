@@ -1,4 +1,4 @@
-import { addDays, startOfWeek } from "date-fns";
+import { addDays, addMonths, format, startOfWeek } from "date-fns";
 
 export type AssumptionMap = Record<string, number>;
 
@@ -13,29 +13,56 @@ export interface HireForecastEntry {
   annual_salary: number;
 }
 
+export interface VendorRow {
+  key: string;
+  label: string;
+  weeks: number[]; // value per forecast week (length = weeksCount)
+}
+
+export interface OpExRow {
+  key: string;
+  label: string;
+  weeks: number[];
+}
+
 export interface ForecastWeek {
-  weekIndex: number;
+  weekIndex: number; // 0-based
   weekStartDate: Date;
   openingBalance: number;
+  // inflows
   stripeRevenue: number;
   enterpriseRevenue: number;
   arCollections: number;
-  payroll: number;
-  cogs: number;
-  cardPayments: number;
-  rent: number;
-  opex: number;
   totalInflows: number;
+  // outflows
+  payroll: number;
+  cogsTotal: number;
+  brexCard: number;
+  opexTotal: number;
+  rent: number;
   totalOutflows: number;
+  // result
   netChange: number;
   closingBalance: number;
+  // analytics
+  belowFloor: boolean;
+  headroom: number;
+  trailingMonthlyBurn: number | null;
+  runwayMonths: number | null;
+  cashOutDate: string | null;
 }
 
 export interface ForecastResult {
   weeks: ForecastWeek[];
+  cogsRows: VendorRow[]; // 8 rows (incl. Other COGS smoothed)
+  opexRows: OpExRow[]; // 8 rows
+  rentRow: number[]; // per-week rent
   averageWeeklyBurn: number;
-  runwayWeeks: number | null;
+  monthlyBurn: number | null;
+  runwayMonths: number | null;
   endingBalance: number;
+  cashOutDate: string | null;
+  minCashThreshold: number;
 }
 
 export const buildAssumptionMap = (
@@ -48,12 +75,53 @@ export const buildAssumptionMap = (
   return map;
 };
 
-const monthStartIndices = (weeks: number) => {
-  // Treat week 0 as start of payment month; pay rent/opex/card on week 0, 4, 8...
-  const indices: number[] = [];
-  for (let i = 0; i < weeks; i += 4) indices.push(i);
-  return indices;
+// Vendor week positions (1-indexed weeks per spec)
+const COGS_VENDOR_WEEKS: Record<string, number[]> = {
+  cogs_anthropic: [2, 7, 11],
+  cogs_azure: [3, 8, 12],
+  cogs_openai: [2, 7, 11],
+  cogs_elevenlabs: [3, 8, 12],
+  cogs_deepgram: [2], // one-time
+  cogs_pump_aws: [4, 9, 13],
+  cogs_twilio: [3, 8, 12],
 };
+
+const COGS_LABELS: Record<string, string> = {
+  cogs_anthropic: "Anthropic",
+  cogs_azure: "Azure",
+  cogs_openai: "OpenAI",
+  cogs_elevenlabs: "ElevenLabs",
+  cogs_deepgram: "Deepgram",
+  cogs_pump_aws: "Pump/AWS",
+  cogs_twilio: "Twilio",
+  cogs_other: "Other COGS",
+};
+
+const OPEX_KEYS = [
+  "opex_sm",
+  "opex_software",
+  "opex_legal",
+  "opex_deel",
+  "opex_hr_te",
+  "opex_recruiting",
+  "opex_ga",
+] as const;
+
+const OPEX_LABELS: Record<string, string> = {
+  opex_sm: "S&M",
+  opex_software: "Software",
+  opex_legal: "Legal",
+  opex_deel: "Deel",
+  opex_hr_te: "HR / T&E",
+  opex_recruiting: "Recruiting",
+  opex_ga: "G&A",
+};
+
+const BREX_BY_WEEK: Record<number, number> = { 2: 540000, 7: 551000, 11: 562000 };
+
+const PAYROLL_WEEKS = new Set([2, 4, 6, 8, 10, 12]);
+
+const WEEKS_PER_MONTH = 4.333;
 
 export const buildForecast = (
   assumptions: AssumptionMap,
@@ -65,68 +133,121 @@ export const buildForecast = (
   const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
 
   const opening = assumptions["opening_cash_balance"] ?? 0;
-  const stripeBase = assumptions["stripe_weekly_revenue"] ?? 0;
-  const stripeGrowth = (assumptions["stripe_growth_rate_weekly"] ?? 0) / 100;
-  const enterpriseMonthly = assumptions["enterprise_monthly_ach"] ?? 0;
-  const biweeklyPayroll = assumptions["biweekly_payroll"] ?? 0;
-  const payrollTaxesPct = (assumptions["payroll_taxes_pct"] ?? 0) / 100;
-  const cogsPct = (assumptions["cogs_pct_of_revenue"] ?? 0) / 100;
-  const monthlyRent = assumptions["monthly_rent"] ?? 0;
-  const monthlyOpex = assumptions["monthly_opex"] ?? 0;
-  const monthlyCard = assumptions["monthly_card_payments"] ?? 0;
+  const minCashThreshold = assumptions["min_cash_threshold"] ?? 15_000_000;
 
-  const monthlyWeeks = monthStartIndices(weeksCount);
+  const stripeDaily = assumptions["stripe_daily_rate"] ?? 0;
+  const stripeGrowthMonthly = (assumptions["stripe_growth_pct"] ?? 0) / 100;
+  const enterpriseWeekly = assumptions["enterprise_ach_weekly"] ?? 0;
 
+  const arDelayDays = assumptions["ar_delay_days"] ?? 0;
+  const arDelayWeeks = Math.round(arDelayDays / 7);
+
+  const payrollSemi = assumptions["payroll_semi_monthly"] ?? 0;
+  const oneTimeW2 = assumptions["one_time_w2"] ?? 0;
+
+  const rentMaySep = assumptions["rent_may_sep"] ?? 0;
+  const rentOctPlus = assumptions["rent_oct_plus"] ?? 0;
+
+  // Pre-compute week start dates
+  const weekStartDates: Date[] = [];
+  for (let i = 0; i < weeksCount; i++) weekStartDates.push(addDays(start, i * 7));
+
+  // ============ COGS rows ============
+  const cogsRows: VendorRow[] = [];
+  for (const key of Object.keys(COGS_VENDOR_WEEKS)) {
+    const monthly = assumptions[key] ?? 0;
+    const positions = COGS_VENDOR_WEEKS[key];
+    const arr = new Array(weeksCount).fill(0);
+    for (const w of positions) {
+      const idx = w - 1;
+      if (idx >= 0 && idx < weeksCount) arr[idx] = monthly;
+    }
+    cogsRows.push({ key, label: COGS_LABELS[key], weeks: arr });
+  }
+  // Other COGS smoothed
+  {
+    const monthly = assumptions["cogs_other"] ?? 0;
+    const perWeek = monthly / WEEKS_PER_MONTH;
+    cogsRows.push({
+      key: "cogs_other",
+      label: COGS_LABELS["cogs_other"],
+      weeks: new Array(weeksCount).fill(perWeek),
+    });
+  }
+
+  // ============ OpEx rows (smoothed weekly) ============
+  const opexRows: OpExRow[] = OPEX_KEYS.map((key) => {
+    const monthly = assumptions[key] ?? 0;
+    const perWeek = monthly / WEEKS_PER_MONTH;
+    const arr = new Array(weeksCount).fill(perWeek);
+    if (key === "opex_ga") {
+      // G&A W2 adds one_time_w2
+      arr[1] = perWeek + oneTimeW2;
+    }
+    return { key, label: OPEX_LABELS[key], weeks: arr };
+  });
+
+  // ============ Rent row ============
+  // Active rate based on calendar month of week start; drop on month-anchor weeks (W1, W5, W9, W13)
+  const rentRow = new Array(weeksCount).fill(0);
+  const monthAnchorWeeks = [0, 4, 8, 12];
+  for (const idx of monthAnchorWeeks) {
+    if (idx >= weeksCount) continue;
+    const m = weekStartDates[idx].getMonth(); // 0=Jan
+    // May=4, Sep=8, Oct=9
+    const rate = m >= 4 && m <= 8 ? rentMaySep : m >= 9 ? rentOctPlus : rentMaySep;
+    rentRow[idx] = rate;
+  }
+
+  // ============ A/R collections per week ============
+  const arPerWeek = new Array(weeksCount).fill(0);
+  for (const e of arEntries) {
+    if (e.status === "written_off" || e.status === "collected") continue;
+    const expected = addDays(new Date(e.expected_collection_date), arDelayWeeks * 7);
+    const expectedWeekStart = startOfWeek(expected, { weekStartsOn: 1 });
+    const idx = Math.round((expectedWeekStart.getTime() - start.getTime()) / (7 * 86400000));
+    if (idx >= 0 && idx < weeksCount) arPerWeek[idx] += Number(e.invoice_amount);
+  }
+
+  // ============ Per-week assembly ============
   const weeks: ForecastWeek[] = [];
-  let runningBalance = opening;
+  let running = opening;
 
   for (let i = 0; i < weeksCount; i++) {
-    const weekStart = addDays(start, i * 7);
+    const weekStart = weekStartDates[i];
     const weekEnd = addDays(weekStart, 6);
+    const weekNum = i + 1; // 1-indexed
 
-    // Stripe revenue with growth
-    const stripeRevenue = stripeBase * Math.pow(1 + stripeGrowth, i);
+    const monthIndex = Math.floor(i / WEEKS_PER_MONTH);
+    const stripeRevenue = stripeDaily * 5 * Math.pow(1 + stripeGrowthMonthly, monthIndex);
+    const enterpriseRevenue = enterpriseWeekly;
+    const arCollections = arPerWeek[i];
 
-    // Enterprise revenue: assume monthly ACH paid week 1 of each "month" (every 4 weeks)
-    const enterpriseRevenue = monthlyWeeks.includes(i) ? enterpriseMonthly : 0;
-
-    // A/R collections falling in this week
-    const arCollections = arEntries
-      .filter((e) => {
-        if (e.status === "written_off" || e.status === "collected") return false;
-        const d = new Date(e.expected_collection_date);
-        return d >= weekStart && d <= weekEnd;
-      })
-      .reduce((sum, e) => sum + Number(e.invoice_amount), 0);
-
-    // Payroll bi-weekly (every 2 weeks starting week 0). Add new hires pro-rated.
+    // Payroll
     let payroll = 0;
-    if (i % 2 === 0) {
-      payroll = biweeklyPayroll * (1 + payrollTaxesPct);
-      // add hires already started
+    if (PAYROLL_WEEKS.has(weekNum)) {
+      payroll = payrollSemi;
       const activeHires = hires.filter((h) => new Date(h.start_date) <= weekEnd);
-      const hireBiweekly = activeHires.reduce(
-        (sum, h) => sum + (Number(h.annual_salary) / 26) * (1 + payrollTaxesPct),
-        0
-      );
-      payroll += hireBiweekly;
+      payroll += activeHires.reduce((s, h) => s + Number(h.annual_salary) / 24, 0);
     }
 
-    // COGS as % of total revenue
-    const cogs = (stripeRevenue + enterpriseRevenue) * cogsPct;
+    // COGS total
+    const cogsTotal = cogsRows.reduce((s, r) => s + r.weeks[i], 0);
 
-    // Monthly outflows
-    const isMonthStart = monthlyWeeks.includes(i);
-    const cardPayments = isMonthStart ? monthlyCard : 0;
-    const rent = isMonthStart ? monthlyRent : 0;
-    const opex = isMonthStart ? monthlyOpex : 0;
+    // Brex
+    const brexCard = BREX_BY_WEEK[weekNum] ?? 0;
+
+    // OpEx total
+    const opexTotal = opexRows.reduce((s, r) => s + r.weeks[i], 0);
+
+    const rent = rentRow[i];
 
     const totalInflows = stripeRevenue + enterpriseRevenue + arCollections;
-    const totalOutflows = payroll + cogs + cardPayments + rent + opex;
+    const totalOutflows = payroll + cogsTotal + brexCard + opexTotal + rent;
     const netChange = totalInflows - totalOutflows;
-    const openingBalance = runningBalance;
+    const openingBalance = running;
     const closingBalance = openingBalance + netChange;
-    runningBalance = closingBalance;
+    running = closingBalance;
 
     weeks.push({
       weekIndex: i,
@@ -135,22 +256,57 @@ export const buildForecast = (
       stripeRevenue,
       enterpriseRevenue,
       arCollections,
-      payroll,
-      cogs,
-      cardPayments,
-      rent,
-      opex,
       totalInflows,
+      payroll,
+      cogsTotal,
+      brexCard,
+      opexTotal,
+      rent,
       totalOutflows,
       netChange,
       closingBalance,
+      belowFloor: closingBalance < minCashThreshold,
+      headroom: closingBalance - minCashThreshold,
+      trailingMonthlyBurn: null,
+      runwayMonths: null,
+      cashOutDate: null,
     });
+  }
+
+  // ============ Analytics: trailing 4-week monthly burn, runway, cash-out per week ============
+  for (let i = 0; i < weeks.length; i++) {
+    const windowStart = Math.max(0, i - 3);
+    const slice = weeks.slice(windowStart, i + 1);
+    const avgNet = slice.reduce((s, w) => s + w.netChange, 0) / slice.length;
+    const monthlyBurn = -avgNet * WEEKS_PER_MONTH; // burn is positive when net is negative
+    const isPositive = monthlyBurn <= 0;
+    weeks[i].trailingMonthlyBurn = isPositive ? null : monthlyBurn;
+    if (isPositive) {
+      weeks[i].runwayMonths = null;
+      weeks[i].cashOutDate = null;
+    } else {
+      const runway = weeks[i].closingBalance / monthlyBurn;
+      weeks[i].runwayMonths = runway;
+      const cashOut = addMonths(new Date(), Math.max(0, runway));
+      weeks[i].cashOutDate = format(cashOut, "MMM yyyy");
+    }
   }
 
   const burns = weeks.map((w) => Math.max(0, -w.netChange));
   const averageWeeklyBurn = burns.reduce((a, b) => a + b, 0) / Math.max(1, weeks.length);
   const endingBalance = weeks[weeks.length - 1]?.closingBalance ?? opening;
-  const runwayWeeks = averageWeeklyBurn > 0 ? opening / averageWeeklyBurn : null;
+  const lastWeek = weeks[weeks.length - 1];
 
-  return { weeks, averageWeeklyBurn, runwayWeeks, endingBalance };
+  return {
+    weeks,
+    cogsRows,
+    opexRows,
+    rentRow,
+    averageWeeklyBurn,
+    monthlyBurn: lastWeek?.trailingMonthlyBurn ?? null,
+    runwayMonths: lastWeek?.runwayMonths ?? null,
+    endingBalance,
+    cashOutDate: lastWeek?.cashOutDate ?? null,
+    minCashThreshold,
+  };
 };
