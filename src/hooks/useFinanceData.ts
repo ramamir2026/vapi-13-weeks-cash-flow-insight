@@ -162,3 +162,120 @@ export const useDeleteHire = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 };
+
+// ============ Forecast snapshot ============
+export type ForecastSnapshotWeek = {
+  week_index: number;
+  week_start_date: string;
+  opening_balance: number;
+  stripe_revenue: number;
+  enterprise_revenue: number;
+  ar_collections: number;
+  payroll: number;
+  cogs: number;
+  card_payments: number;
+  rent: number;
+  opex: number;
+  net_change: number;
+  closing_balance: number;
+  burn: number;
+  runway_weeks: number | null;
+};
+
+export const useSaveForecastSnapshot = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (weeks: ForecastSnapshotWeek[]) => {
+      const snapshotId = crypto.randomUUID();
+      const label = `Snapshot ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
+      const rows = weeks.map((w) => ({
+        ...w,
+        snapshot_id: snapshotId,
+        snapshot_label: label,
+      }));
+      const { error } = await supabase.from("model_weeks").insert(rows as any);
+      if (error) throw error;
+      return snapshotId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["model_weeks"] });
+      toast.success("Forecast snapshot saved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+};
+
+// ============ Weekly actuals (prior-week column on dashboard) ============
+// We store the per-row actuals as JSON in weekly_actuals.notes for the prior week.
+const priorWeekStartISO = () => {
+  const d = new Date();
+  const day = d.getDay(); // 0 Sun .. 6 Sat
+  const diff = (day + 6) % 7; // days since Monday
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - diff - 7); // prior week's Monday
+  return monday.toISOString().slice(0, 10);
+};
+
+export const useWeeklyActuals = () =>
+  useQuery({
+    queryKey: ["weekly_actuals_prior"],
+    queryFn: async () => {
+      const wk = priorWeekStartISO();
+      const { data, error } = await supabase
+        .from("weekly_actuals")
+        .select("*")
+        .eq("week_start_date", wk)
+        .maybeSingle();
+      if (error) throw error;
+      let map: Record<string, number> = {};
+      if (data?.notes) {
+        try {
+          map = JSON.parse(data.notes);
+        } catch {
+          map = {};
+        }
+      }
+      return { weekStart: wk, closing: Number(data?.closing_cash_balance ?? 0), map };
+    },
+  });
+
+export const useUpdateWeeklyActual = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ rowKey, value }: { rowKey: string; value: number }) => {
+      const wk = priorWeekStartISO();
+      const { data: existing } = await supabase
+        .from("weekly_actuals")
+        .select("*")
+        .eq("week_start_date", wk)
+        .maybeSingle();
+      let map: Record<string, number> = {};
+      if (existing?.notes) {
+        try {
+          map = JSON.parse(existing.notes);
+        } catch {
+          map = {};
+        }
+      }
+      map[rowKey] = value;
+      if (existing) {
+        const { error } = await supabase
+          .from("weekly_actuals")
+          .update({ notes: JSON.stringify(map), closing_cash_balance: map.closingBalance ?? existing.closing_cash_balance })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("weekly_actuals").insert({
+          week_start_date: wk,
+          notes: JSON.stringify(map),
+          closing_cash_balance: map.closingBalance ?? 0,
+        } as any);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["weekly_actuals_prior"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+};
