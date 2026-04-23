@@ -172,12 +172,18 @@ export const buildForecast = (
   // ============ COGS rows ============
   const cogsRows: VendorRow[] = [];
   for (const key of Object.keys(COGS_VENDOR_WEEKS)) {
-    const monthly = assumptions[key] ?? 0;
+    const monthlyBase = assumptions[key] ?? 0;
     const positions = COGS_VENDOR_WEEKS[key];
     const arr = new Array(weeksCount).fill(0);
     for (const w of positions) {
       const idx = w - 1;
-      if (idx >= 0 && idx < weeksCount) arr[idx] = monthly;
+      if (idx >= 0 && idx < weeksCount) {
+        const monthIdx = Math.floor(idx / WEEKS_PER_MONTH);
+        const monthly = COGS_GROWTH_KEYS.has(key)
+          ? monthlyBase * Math.pow(1 + COGS_MONTHLY_GROWTH, monthIdx)
+          : monthlyBase;
+        arr[idx] = monthly;
+      }
     }
     cogsRows.push({ key, label: COGS_LABELS[key], weeks: arr });
   }
@@ -243,7 +249,7 @@ export const buildForecast = (
     // Payroll
     let payroll = 0;
     if (PAYROLL_WEEKS.has(weekNum)) {
-      payroll = payrollSemi;
+      payroll = payrollSemi + payrollFee;
       const activeHires = hires.filter((h) => new Date(h.start_date) <= weekEnd);
       payroll += activeHires.reduce((s, h) => s + Number(h.annual_salary) / 24, 0);
     }
@@ -252,7 +258,7 @@ export const buildForecast = (
     const cogsTotal = cogsRows.reduce((s, r) => s + r.weeks[i], 0);
 
     // Brex
-    const brexCard = BREX_BY_WEEK[weekNum] ?? 0;
+    const brexCard = brexByWeek[weekNum] ?? 0;
 
     // OpEx total
     const opexTotal = opexRows.reduce((s, r) => s + r.weeks[i], 0);
