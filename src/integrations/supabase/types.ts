@@ -130,6 +130,7 @@ export type Database = {
           notes: string | null
           role: string
           start_date: string
+          status: Database["public"]["Enums"]["hire_status"]
           updated_at: string
         }
         Insert: {
@@ -142,6 +143,7 @@ export type Database = {
           notes?: string | null
           role: string
           start_date: string
+          status?: Database["public"]["Enums"]["hire_status"]
           updated_at?: string
         }
         Update: {
@@ -154,7 +156,35 @@ export type Database = {
           notes?: string | null
           role?: string
           start_date?: string
+          status?: Database["public"]["Enums"]["hire_status"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      hire_payroll_overrides: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          forecast_start: string
+          id: string
+          periods: Json
+          weeks: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          forecast_start: string
+          id?: string
+          periods: Json
+          weeks: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          forecast_start?: string
+          id?: string
+          periods?: Json
+          weeks?: Json
         }
         Relationships: []
       }
@@ -324,6 +354,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       ar_status: "pending" | "collected" | "overdue" | "written_off"
+      hire_status: "confirmed" | "offer_sent" | "interviewing"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -453,6 +484,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       ar_status: ["pending", "collected", "overdue", "written_off"],
+      hire_status: ["confirmed", "offer_sent", "interviewing"],
     },
   },
 } as const
