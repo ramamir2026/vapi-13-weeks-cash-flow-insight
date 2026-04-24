@@ -222,15 +222,13 @@ export const buildForecast = (
   });
 
   // ============ Rent row ============
-  // Active rate based on calendar month of week start; drop on month-anchor weeks (W1, W5, W9, W13)
+  // Rent drops at W2, W7, W11 (May 1, June 1, July 1 lease payments)
   const rentRow = new Array(weeksCount).fill(0);
-  const monthAnchorWeeks = [0, 4, 8, 12];
-  for (const idx of monthAnchorWeeks) {
+  const rentPaymentIndices = [1, 6, 10];
+  for (const idx of rentPaymentIndices) {
     if (idx >= weeksCount) continue;
-    const m = weekStartDates[idx].getMonth(); // 0=Jan
-    // May=4, Sep=8, Oct=9
-    const rate = m >= 4 && m <= 8 ? rentMaySep : m >= 9 ? rentOctPlus : rentMaySep;
-    rentRow[idx] = rate;
+    const m = weekStartDates[idx].getMonth();
+    rentRow[idx] = m >= 9 ? rentOctPlus : rentMaySep;
   }
 
   // ============ A/R collections per week ============
