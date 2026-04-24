@@ -206,24 +206,17 @@ export const MondayChecklist = () => {
     });
   };
 
-  // Collapsed success state.
-  if (allDone && !manuallyExpanded) {
+  // Collapsed success banner — shown immediately on completion. On the next
+  // page load the checklist is hidden entirely (handled above) until the
+  // following Monday at midnight.
+  if (allDone) {
     return (
       <Card className="border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/5">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--success))]">
-            <CheckCircle2 className="h-5 w-5" />
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <CheckCircle2 className="h-5 w-5 text-[hsl(var(--success))]" />
+          <span className="text-sm font-medium text-[hsl(var(--success))]">
             Model updated — Week of {format(new Date(week), "MMM d, yyyy")}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setManuallyExpanded(true)}
-            className="text-[hsl(var(--success))] hover:text-[hsl(var(--success))]"
-          >
-            <ChevronDown className="mr-1 h-4 w-4" />
-            Show checklist
-          </Button>
+          </span>
         </CardContent>
       </Card>
     );
