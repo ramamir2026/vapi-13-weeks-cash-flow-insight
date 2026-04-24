@@ -202,6 +202,10 @@ export default function Dashboard() {
         forecast={forecast}
         actuals={actualsData?.map ?? {}}
         onActualChange={(rowKey, value) => updateActual.mutate({ rowKey, value })}
+        signoffs={signoffMap}
+        isApprover={isApprover}
+        onSignOff={(iso) => signOff.mutate(iso)}
+        onUnsign={(iso) => unsign.mutate(iso)}
       />
     </div>
   );
