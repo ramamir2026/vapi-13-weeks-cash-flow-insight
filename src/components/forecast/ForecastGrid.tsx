@@ -1,9 +1,12 @@
 import { format } from "date-fns";
+import { Check, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { ActualsCell } from "./ActualsCell";
 import type { ForecastResult } from "@/lib/forecast";
+import type { WeekSignoff } from "@/hooks/useControls";
 
 const fmt = (v: number) => {
   if (!v || Math.abs(v) < 0.5) return "—";
@@ -15,20 +18,35 @@ interface Props {
   forecast: ForecastResult;
   actuals: Record<string, number>;
   onActualChange: (rowKey: string, value: number) => void;
+  signoffs?: Record<string, WeekSignoff>; // keyed by week_start_date ISO
+  isApprover?: boolean;
+  onSignOff?: (weekStartIso: string) => void;
+  onUnsign?: (weekStartIso: string) => void;
 }
 
 const STICKY = "sticky left-0 z-10 bg-card";
 const STICKY_HEAD = "sticky left-0 z-20 bg-card";
 
-// color tone classes
 const inputBg = "bg-[hsl(var(--input-blue))] text-[hsl(var(--input-blue-fg))]";
 const estimateBg = "bg-[hsl(var(--estimate-yellow))] text-[hsl(var(--estimate-yellow-fg))]";
 const linkText = "text-[hsl(var(--link-green))]";
 const inflowFill = "bg-[hsl(var(--inflow-green))] text-[hsl(var(--inflow-green-fg))]";
 const outflowFill = "bg-[hsl(var(--outflow-red))] text-[hsl(var(--outflow-red-fg))]";
+const lockedTint = "bg-[hsl(var(--success))]/5";
 
-export const ForecastGrid = ({ forecast, actuals, onActualChange }: Props) => {
+export const ForecastGrid = ({
+  forecast,
+  actuals,
+  onActualChange,
+  signoffs = {},
+  isApprover = false,
+  onSignOff,
+  onUnsign,
+}: Props) => {
   const { weeks, cogsRows, opexRows, rentRow, minCashThreshold } = forecast;
+
+  const weekIsoOf = (i: number) => weeks[i].weekStartDate.toISOString().slice(0, 10);
+  const lockedAt = (i: number) => Boolean(signoffs[weekIsoOf(i)]);
 
   const total = (arr: number[]) => arr.reduce((s, v) => s + v, 0);
 
@@ -71,7 +89,13 @@ export const ForecastGrid = ({ forecast, actuals, onActualChange }: Props) => {
         {weekVals.map((v, i) => (
           <TableCell
             key={i}
-            className={cn("text-right tabular-nums min-w-[110px]", cellClass, bold && "font-semibold", italic && "italic")}
+            className={cn(
+              "text-right tabular-nums min-w-[110px]",
+              cellClass,
+              bold && "font-semibold",
+              italic && "italic",
+              lockedAt(i) && lockedTint
+            )}
           >
             {fmt(v)}
           </TableCell>
@@ -96,7 +120,7 @@ export const ForecastGrid = ({ forecast, actuals, onActualChange }: Props) => {
       </TableCell>
       <TableCell className={cn("min-w-[120px]", inputBg)}>—</TableCell>
       {cellTexts.map((t, i) => (
-        <TableCell key={i} className={cn("text-right text-xs min-w-[110px]", opts.cellClass, opts.italic && "italic")}>
+        <TableCell key={i} className={cn("text-right text-xs min-w-[110px]", opts.cellClass, opts.italic && "italic", lockedAt(i) && lockedTint)}>
           {t}
         </TableCell>
       ))}
@@ -132,14 +156,48 @@ export const ForecastGrid = ({ forecast, actuals, onActualChange }: Props) => {
               Actuals
               <div className="font-normal text-xs opacity-70">prior wk</div>
             </TableHead>
-            {weeks.map((w) => (
-              <TableHead key={w.weekIndex} className="text-right min-w-[110px]">
-                W{w.weekIndex + 1}
-                <div className="font-normal text-xs text-muted-foreground">
-                  {format(w.weekStartDate, "MMM d")}
-                </div>
-              </TableHead>
-            ))}
+            {weeks.map((w, i) => {
+              const iso = weekIsoOf(i);
+              const so = signoffs[iso];
+              return (
+                <TableHead
+                  key={w.weekIndex}
+                  className={cn("text-right min-w-[110px] align-top", so && lockedTint)}
+                >
+                  <div>W{w.weekIndex + 1}</div>
+                  <div className="font-normal text-xs text-muted-foreground">
+                    {format(w.weekStartDate, "MMM d")}
+                  </div>
+                  <div className="mt-1">
+                    {so ? (
+                      <button
+                        type="button"
+                        onClick={() => isApprover && onUnsign?.(iso)}
+                        title={`Approved by ${so.approved_by_email} · ${format(new Date(so.approved_at), "MMM d, h:mma")}`}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]",
+                          isApprover && "hover:bg-[hsl(var(--success))]/25 cursor-pointer"
+                        )}
+                      >
+                        <Check className="h-3 w-3" />
+                        Approved
+                      </button>
+                    ) : isApprover ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onSignOff?.(iso)}
+                        className="h-5 px-1.5 text-[10px] font-normal text-muted-foreground hover:text-foreground"
+                      >
+                        <ShieldCheck className="mr-1 h-3 w-3" />
+                        Sign off
+                      </Button>
+                    ) : null}
+                  </div>
+                </TableHead>
+              );
+            })}
             <TableHead className="text-right min-w-[120px] font-semibold">13-Wk Total</TableHead>
           </TableRow>
         </TableHeader>
@@ -164,7 +222,6 @@ export const ForecastGrid = ({ forecast, actuals, onActualChange }: Props) => {
           {sectionHeader("Outflows", "out")}
           {renderRow("Payroll", weeks.map((w) => w.payroll), { actualKey: "payroll" })}
 
-          {/* COGS sub-section */}
           {cogsRows.map((row) =>
             renderRow(row.label, row.weeks, {
               actualKey: `cogs_${row.key}`,
@@ -175,7 +232,6 @@ export const ForecastGrid = ({ forecast, actuals, onActualChange }: Props) => {
 
           {renderRow("Brex Card Payment", weeks.map((w) => w.brexCard), { actualKey: "brexCard" })}
 
-          {/* OPEX sub-section */}
           {opexRows.map((row) =>
             renderRow(row.label, row.weeks, {
               actualKey: `opex_${row.key}`,
