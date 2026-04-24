@@ -746,6 +746,7 @@ export type Database = {
         | "svb_checking"
         | "svb_money_market"
         | "stripe"
+        | "brex_card"
       hire_status: "confirmed" | "offer_sent" | "interviewing"
     }
     CompositeTypes: {
@@ -883,6 +884,7 @@ export const Constants = {
         "svb_checking",
         "svb_money_market",
         "stripe",
+        "brex_card",
       ],
       hire_status: ["confirmed", "offer_sent", "interviewing"],
     },

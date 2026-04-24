@@ -1,0 +1,1 @@
+ALTER TYPE public.bank_source ADD VALUE IF NOT EXISTS 'brex_card';
