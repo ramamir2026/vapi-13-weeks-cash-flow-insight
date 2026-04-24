@@ -6,7 +6,6 @@ import {
   Receipt,
   UserPlus,
   LogOut,
-  Wallet,
   ScrollText,
   ShieldCheck,
   Banknote,
@@ -17,6 +16,7 @@ import { useCurrentRole } from "@/hooks/useControls";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import vapiLogo from "@/assets/vapi-logo.svg";
 
 const baseNavItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
