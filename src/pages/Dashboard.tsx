@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -24,8 +25,10 @@ import { exportForecastToExcel } from "@/lib/exportExcel";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { ForecastGrid } from "@/components/forecast/ForecastGrid";
 import { BalanceVerificationBanner } from "@/components/dashboard/BalanceVerificationBanner";
-import { WeeklyChecklist } from "@/components/dashboard/WeeklyChecklist";
+import { MondayChecklist } from "@/components/dashboard/MondayChecklist";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
+import { useAutoCheckChecklistItem } from "@/hooks/useBankData";
+import { useAuth } from "@/hooks/useAuth";
 import { useCreateAlerts, useSaveVarianceSnapshots } from "@/hooks/useAlerts";
 import { detectAlerts, type VarianceTxn } from "@/lib/variance";
 import { supabase } from "@/integrations/supabase/client";
