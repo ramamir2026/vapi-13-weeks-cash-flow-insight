@@ -1,35 +1,94 @@
-// Lightweight CSV parser tolerant to QuickBooks A/R Aging Summary exports.
-// No external deps.
+// Parser for QuickBooks A/R Aging Summary CSV exports.
+// Each customer row has aging-bucket columns (Current, 1-30, 31-60, 61-90, >90).
+// We expand each non-zero bucket into a separate ParsedArRow so the user sees
+// one preview line per bucket and can adjust the expected week.
 
 export type ParsedArRow = {
   customer: string;
   invoiceNumber: string;
   amount: number;
-  agingDays: number;
-  invoiceDate: string; // YYYY-MM-DD
-  probability: number; // 0..1
-  expectedWeek: number; // 1..13
+  agingDays: number;       // representative day count for the bucket
+  invoiceDate: string;     // YYYY-MM-DD (synthesized from agingDays)
+  probability: number;     // 0..1
+  expectedWeek: number;    // 1..13
+  bucketLabel: string;     // "Current" | "1-30" | "31-60" | "61-90" | "91+"
 };
 
-const PROB_BY_BUCKET = (days: number): number => {
+export class ArCsvParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArCsvParseError";
+  }
+}
+
+const FORMAT_ERROR =
+  "This does not look like a QuickBooks A/R Aging Summary. " +
+  "Please export from Reports → Aging → A/R Aging Summary in QuickBooks.";
+
+// ----- Aging bucket definitions ---------------------------------------------
+
+type BucketKey = "current" | "b1_30" | "b31_60" | "b61_90" | "b91_plus";
+
+type BucketDef = {
+  key: BucketKey;
+  label: string;
+  representativeDays: number;
+  probability: number;
+  weekOptions: number[]; // round-robin assigned to expectedWeek
+};
+
+const BUCKETS: Record<BucketKey, BucketDef> = {
+  current:  { key: "current",  label: "Current", representativeDays: 0,   probability: 0.9,  weekOptions: [1, 2] },
+  b1_30:    { key: "b1_30",    label: "1-30",    representativeDays: 15,  probability: 0.9,  weekOptions: [2, 3] },
+  b31_60:   { key: "b31_60",   label: "31-60",   representativeDays: 45,  probability: 0.75, weekOptions: [3, 4, 5] },
+  b61_90:   { key: "b61_90",   label: "61-90",   representativeDays: 75,  probability: 0.5,  weekOptions: [6, 7, 8] },
+  b91_plus: { key: "b91_plus", label: "91+",     representativeDays: 120, probability: 0.2,  weekOptions: [9, 10] },
+};
+
+export const probabilityForAging = (days: number): number => {
   if (days <= 30) return 0.9;
   if (days <= 60) return 0.75;
   if (days <= 90) return 0.5;
   return 0.2;
 };
 
-// 0–30 → W1–W2 (round-robin), 31–60 → W3–W5, 61–90 → W6–W8, 90+ → W9–W10
-const weekForBucket = (days: number, counterRef: { c: Record<string, number> }): number => {
-  const pick = (label: string, options: number[]) => {
-    const i = (counterRef.c[label] ?? 0) % options.length;
-    counterRef.c[label] = (counterRef.c[label] ?? 0) + 1;
-    return options[i];
-  };
-  if (days <= 30) return pick("a", [1, 2]);
-  if (days <= 60) return pick("b", [3, 4, 5]);
-  if (days <= 90) return pick("c", [6, 7, 8]);
-  return pick("d", [9, 10]);
+// ----- Header matching ------------------------------------------------------
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// Map a normalized header cell → bucket key. Handles common QuickBooks variants.
+const matchBucketHeader = (raw: string): BucketKey | null => {
+  const n = norm(raw);
+  if (!n) return null;
+  if (n === "current" || n === "notdue" || n === "030") return "current";
+  if (n === "130" || n === "1to30" || n === "0130") return "b1_30";
+  if (n === "3160" || n === "31to60") return "b31_60";
+  if (n === "6190" || n === "61to90") return "b61_90";
+  // 91+, >90, over 90, 91 and over, 91andover, 91plus, greaterthan90
+  if (
+    n === "91andover" ||
+    n === "91plus" ||
+    n === "91" ||
+    n === "over90" ||
+    n === "greaterthan90" ||
+    n === "morethan90" ||
+    n.endsWith("90") && (n.startsWith("over") || n.startsWith("gt") || n.startsWith("greater") || n.startsWith("morethan")) ||
+    n === "90plus" ||
+    n === "90andover"
+  ) {
+    return "b91_plus";
+  }
+  return null;
 };
+
+const isCustomerHeader = (raw: string): boolean => {
+  const n = norm(raw);
+  return n === "customer" || n === "customername" || n === "name" || n === "client";
+};
+
+// ----- CSV tokenizer --------------------------------------------------------
+
+const stripBom = (s: string) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
 
 const splitCsvLine = (line: string): string[] => {
   const out: string[] = [];
@@ -55,50 +114,70 @@ const splitCsvLine = (line: string): string[] => {
   return out.map((s) => s.trim());
 };
 
-const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-const HEADER_MAP: Record<string, "customer" | "invoiceNumber" | "amount" | "agingDays" | "dueDate" | "invoiceDate"> = {
-  customer: "customer",
-  customername: "customer",
-  name: "customer",
-  invoice: "invoiceNumber",
-  invoiceno: "invoiceNumber",
-  invoicenumber: "invoiceNumber",
-  num: "invoiceNumber",
-  number: "invoiceNumber",
-  invoiceamount: "amount",
-  amount: "amount",
-  openbalance: "amount",
-  balance: "amount",
-  agingdays: "agingDays",
-  daysoverdue: "agingDays",
-  dayspastdue: "agingDays",
-  aging: "agingDays",
-  duedate: "dueDate",
-  invoicedate: "invoiceDate",
-  date: "invoiceDate",
-};
-
 const parseAmount = (s: string): number => {
-  const cleaned = s.replace(/[$,\s]/g, "").replace(/[()]/g, (m) => (m === "(" ? "-" : ""));
-  const n = parseFloat(cleaned);
-  return Number.isFinite(n) ? n : 0;
+  if (!s) return 0;
+  let t = s.trim();
+  let neg = false;
+  const paren = /^\((.*)\)$/.exec(t);
+  if (paren) {
+    neg = true;
+    t = paren[1];
+  }
+  if (t.startsWith("-")) {
+    neg = !neg;
+    t = t.slice(1);
+  }
+  t = t.replace(/[$,\s]/g, "");
+  if (!t) return 0;
+  const n = parseFloat(t);
+  if (!Number.isFinite(n)) return 0;
+  return neg ? -Math.abs(n) : n;
 };
 
-const toIsoDate = (s: string): string | null => {
-  if (!s) return null;
-  const d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+// ----- Header row detection -------------------------------------------------
+
+type HeaderInfo = {
+  rowIndex: number;
+  customerCol: number;
+  bucketCols: Partial<Record<BucketKey, number>>;
+  totalCol: number | null;
+};
+
+const detectHeader = (lines: string[]): HeaderInfo | null => {
+  // QuickBooks usually emits the column headers within the first ~12 rows.
+  const scanLimit = Math.min(lines.length, 15);
+  for (let i = 0; i < scanLimit; i++) {
+    const cols = splitCsvLine(lines[i]);
+    let customerCol = -1;
+    const bucketCols: Partial<Record<BucketKey, number>> = {};
+    let totalCol: number | null = null;
+
+    cols.forEach((c, idx) => {
+      if (customerCol === -1 && isCustomerHeader(c)) {
+        customerCol = idx;
+        return;
+      }
+      const b = matchBucketHeader(c);
+      if (b && bucketCols[b] === undefined) {
+        bucketCols[b] = idx;
+        return;
+      }
+      if (totalCol === null && norm(c) === "total") {
+        totalCol = idx;
+      }
+    });
+
+    // Accept the row if we found a customer column AND at least one aging bucket.
+    if (customerCol !== -1 && Object.keys(bucketCols).length >= 1) {
+      return { rowIndex: i, customerCol, bucketCols, totalCol };
+    }
+  }
   return null;
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// ----- Main entry point -----------------------------------------------------
 
-const daysBetween = (aIso: string, bIso: string) => {
-  const a = new Date(aIso).getTime();
-  const b = new Date(bIso).getTime();
-  return Math.round((a - b) / 86400000);
-};
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const subDays = (iso: string, days: number) => {
   const d = new Date(iso);
@@ -106,71 +185,70 @@ const subDays = (iso: string, days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-export const parseArCsv = (text: string): ParsedArRow[] => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return [];
-
-  // Find header row: the first line containing at least one recognized header
-  let headerIdx = 0;
-  let headerCols: string[] = [];
-  let headerKey: Array<keyof typeof HEADER_MAP | string | null> = [];
-  for (let i = 0; i < Math.min(lines.length, 10); i++) {
-    const cols = splitCsvLine(lines[i]);
-    const mapped = cols.map((c) => HEADER_MAP[normalize(c)] ?? null);
-    if (mapped.filter(Boolean).length >= 2) {
-      headerIdx = i;
-      headerCols = cols;
-      headerKey = mapped;
-      break;
-    }
+export const parseArCsv = (rawText: string): ParsedArRow[] => {
+  if (!rawText || !rawText.trim()) {
+    throw new ArCsvParseError("The file is empty.");
   }
-  if (headerCols.length === 0) return [];
+
+  // Strip BOM, normalize CRLF → LF, drop blank lines.
+  const text = stripBom(rawText).replace(/\r\n?/g, "\n");
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    throw new ArCsvParseError(FORMAT_ERROR);
+  }
+
+  const header = detectHeader(lines);
+  if (!header) {
+    throw new ArCsvParseError(FORMAT_ERROR);
+  }
 
   const today = todayIso();
-  const counter = { c: {} as Record<string, number> };
-  const rows: ParsedArRow[] = [];
+  const counters: Record<BucketKey, number> = {
+    current: 0, b1_30: 0, b31_60: 0, b61_90: 0, b91_plus: 0,
+  };
 
-  for (let i = headerIdx + 1; i < lines.length; i++) {
+  const out: ParsedArRow[] = [];
+
+  for (let i = header.rowIndex + 1; i < lines.length; i++) {
     const cols = splitCsvLine(lines[i]);
     if (cols.every((c) => !c)) continue;
 
-    const rec: Record<string, string> = {};
-    cols.forEach((val, idx) => {
-      const k = headerKey[idx];
-      if (k) rec[k] = val;
-    });
+    const customerRaw = (cols[header.customerCol] ?? "").trim();
+    if (!customerRaw) continue;
 
-    const customer = (rec.customer || "").trim();
-    const amount = parseAmount(rec.amount || "0");
-    if (!customer || amount === 0) continue;
-    // Skip total/subtotal rows
-    if (/^(total|grand total|subtotal)/i.test(customer)) continue;
+    // Skip subtotal / total rows.
+    if (/^(total|grand\s*total|subtotal)\b/i.test(customerRaw)) continue;
 
-    let agingDays = parseInt((rec.agingDays || "").replace(/[^\d-]/g, ""), 10);
-    let invoiceDate = toIsoDate(rec.invoiceDate || "");
-    if (!Number.isFinite(agingDays)) {
-      const due = toIsoDate(rec.dueDate || "");
-      if (due) agingDays = Math.max(0, daysBetween(today, due));
-      else if (invoiceDate) agingDays = Math.max(0, daysBetween(today, invoiceDate));
-      else agingDays = 0;
-    }
-    if (!invoiceDate) invoiceDate = subDays(today, agingDays);
+    // Expand each non-zero bucket into its own ParsedArRow.
+    (Object.keys(BUCKETS) as BucketKey[]).forEach((key) => {
+      const colIdx = header.bucketCols[key];
+      if (colIdx === undefined) return;
+      const cell = cols[colIdx];
+      const amount = parseAmount(cell ?? "");
+      if (!amount) return;
 
-    const probability = PROB_BY_BUCKET(agingDays);
-    const expectedWeek = weekForBucket(agingDays, counter);
+      const def = BUCKETS[key];
+      const weekIdx = counters[key] % def.weekOptions.length;
+      counters[key] += 1;
 
-    rows.push({
-      customer,
-      invoiceNumber: (rec.invoiceNumber || "").trim(),
-      amount,
-      agingDays,
-      invoiceDate,
-      probability,
-      expectedWeek,
+      out.push({
+        customer: customerRaw,
+        invoiceNumber: "",
+        amount,
+        agingDays: def.representativeDays,
+        invoiceDate: subDays(today, def.representativeDays),
+        probability: def.probability,
+        expectedWeek: def.weekOptions[weekIdx],
+        bucketLabel: def.label,
+      });
     });
   }
 
-  return rows;
-};
+  if (out.length === 0) {
+    throw new ArCsvParseError(
+      "No customer rows with non-zero balances were found in this report."
+    );
+  }
 
-export const probabilityForAging = PROB_BY_BUCKET;
+  return out;
+};

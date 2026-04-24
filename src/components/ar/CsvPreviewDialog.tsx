@@ -77,11 +77,11 @@ export const CsvPreviewDialog = ({
                   />
                 </TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Invoice #</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Bucket</TableHead>
+                <TableHead className="text-right">Total Amount</TableHead>
                 <TableHead className="text-right">Aging</TableHead>
                 <TableHead className="text-right">Prob %</TableHead>
-                <TableHead>Week</TableHead>
+                <TableHead>Expected Week</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -96,7 +96,7 @@ export const CsvPreviewDialog = ({
                     />
                   </TableCell>
                   <TableCell className="font-medium">{r.customer}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.invoiceNumber || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.bucketLabel || (r.invoiceNumber || "—")}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(r.amount)}
                   </TableCell>
