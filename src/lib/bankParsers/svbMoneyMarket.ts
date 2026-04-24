@@ -3,6 +3,7 @@
 import {
   autoCategorize,
   norm,
+  normalizeText,
   parseAmount,
   ParsedTxn,
   rid,
@@ -27,8 +28,9 @@ const HEADER_MAP: Record<string, "date" | "description" | "credit" | "debit" | "
   runningbalance: "balance",
 };
 
-export const parseSvbMoneyMarketCsv = (text: string): ParsedTxn[] => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+export const parseSvbMoneyMarketCsv = (rawText: string): ParsedTxn[] => {
+  const text = normalizeText(rawText);
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   let headerIdx = -1;

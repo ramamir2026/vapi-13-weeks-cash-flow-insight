@@ -3,6 +3,7 @@
 import {
   autoCategorize,
   norm,
+  normalizeText,
   parseAmount,
   ParsedTxn,
   rid,
@@ -25,8 +26,9 @@ const HEADER_MAP: Record<string, "date" | "description" | "amount" | "balance"> 
   endingbalance: "balance",
 };
 
-export const parseStripeCsv = (text: string): ParsedTxn[] => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+export const parseStripeCsv = (rawText: string): ParsedTxn[] => {
+  const text = normalizeText(rawText);
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   let headerIdx = -1;

@@ -4,6 +4,7 @@ import {
   autoCategorize,
   BankSource,
   norm,
+  normalizeText,
   parseAmount,
   ParsedTxn,
   rid,
@@ -11,16 +12,21 @@ import {
   toIsoDate,
 } from "./types";
 
-const HEADER_MAP: Record<string, "date" | "vendor" | "amount" | "balance" | "status" | "last4"> = {
+const HEADER_MAP: Record<
+  string,
+  "date" | "vendor" | "amount" | "balance" | "status" | "last4"
+> = {
   date: "date",
   postingdate: "date",
   initiateddate: "date",
   postedat: "date",
+  transactiondate: "date",
   tofrom: "vendor",
   description: "vendor",
   merchant: "vendor",
   payee: "vendor",
   counterparty: "vendor",
+  memo: "vendor",
   amount: "amount",
   amountusd: "amount",
   balance: "balance",
@@ -32,13 +38,16 @@ const HEADER_MAP: Record<string, "date" | "vendor" | "amount" | "balance" | "sta
   last4: "last4",
 };
 
-export const parseBrexCsv = (text: string, source: BankSource): ParsedTxn[] => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+const SKIP_STATUSES = new Set(["pending", "scheduled", "canceled", "cancelled", "failed"]);
+
+export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] => {
+  const text = normalizeText(rawText);
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   let headerIdx = -1;
   let mapping: Array<keyof typeof HEADER_MAP | string | null> = [];
-  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
     const cols = splitCsvLine(lines[i]);
     const m = cols.map((c) => HEADER_MAP[norm(c)] ?? null);
     if (m.includes("date") && m.includes("amount") && m.includes("vendor")) {
@@ -63,7 +72,7 @@ export const parseBrexCsv = (text: string, source: BankSource): ParsedTxn[] => {
     const vendor = (rec.vendor || "").trim();
     const amount = parseAmount(rec.amount || "0");
     if (!date || !vendor || amount === 0) continue;
-    if (rec.status && norm(rec.status) === "pending") continue;
+    if (rec.status && SKIP_STATUSES.has(norm(rec.status))) continue;
 
     rows.push({
       id: rid(),
