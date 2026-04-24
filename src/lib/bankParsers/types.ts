@@ -185,8 +185,18 @@ const RULES: Array<{ keys: string[]; category: string }> = [
 
 export const autoCategorize = (vendor: string, _source: BankSource): string => {
   const v = vendor.toLowerCase();
-  for (const rule of RULES) {
-    if (rule.keys.some((k) => v.includes(k))) return rule.category;
-  }
-  return "unmatched";
+  if (v.includes('sweep') || v.includes('transfer to') || v.includes('transfer from') || v.includes('brex treasury')) return 'zba_sweep';
+  if (v.includes('sequoia one')) return 'payroll';
+  if (v.includes('stripe payout') || v.includes('stripe transfer')) return 'stripe_revenue';
+  if (v.includes('anthropic') || v.includes('openai') || v.includes('azure') || v.includes('deepgram') || v.includes('elevenlabs') || v.includes('twilio') || v.includes('pump')) return 'cogs';
+  if (v.includes('brex inc')) return 'card_payments';
+  if (v.includes('montgomery') || v.includes('supervisor') || v.includes('creators corner') || v.includes('pianta') || v.includes('martin sign')) return 'sm';
+  if (v.includes('prizm') || v.includes('execcatalyst') || v.includes('candidate labs') || v.includes('launch search')) return 'recruiting';
+  if (v.includes('hogan lovells') || v.includes('cti iii') || v.includes('vat compliance')) return 'legal';
+  if (v.includes('deel')) return 'deel';
+  if (v.includes('navan') || v.includes('121 silicon')) return 'hre';
+  if (v.includes('true capital') || v.includes('landlord')) return 'rent';
+  if (v.includes('kitchens') || v.includes('anrok') || v.includes('franchise tax') || v.includes('nys dtf') || v.includes('intuit') || v.includes('cbf')) return 'ga';
+  if (v.includes('versaconnect') || v.includes('unityai') || v.includes('reinform') || v.includes('alto pharmacy') || v.includes('monday.com')) return 'ar_collections';
+  return 'unmatched';
 };
