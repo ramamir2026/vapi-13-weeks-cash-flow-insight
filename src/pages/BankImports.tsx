@@ -1,5 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { Upload, FileSpreadsheet, X, AlertCircle, CheckCircle2, FileText } from "lucide-react";
+import {
+  Upload,
+  FileSpreadsheet,
+  X,
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Database,
+} from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +46,7 @@ import {
 import {
   useBankCategoryRules,
   useBankStatements,
+  useBankTransactionStats,
   useImportBankTransactions,
   useUploadStatement,
   useUpsertCategoryRule,
@@ -60,6 +69,12 @@ const CATEGORY_OPTIONS = [
   "enterprise_revenue",
   "ar_collections",
   "zba_sweep",
+  "sm",
+  "recruiting",
+  "legal",
+  "deel",
+  "hre",
+  "ga",
   "unmatched",
 ] as const;
 
@@ -73,6 +88,12 @@ const CATEGORY_LABEL: Record<string, string> = {
   enterprise_revenue: "Enterprise Revenue",
   ar_collections: "A/R Collections",
   zba_sweep: "ZBA Sweep (excluded)",
+  sm: "Sales & Marketing",
+  recruiting: "Recruiting",
+  legal: "Legal",
+  deel: "Deel (Contractors)",
+  hre: "T&E",
+  ga: "G&A",
   unmatched: "Unmatched",
 };
 
@@ -105,6 +126,58 @@ const applyRules = (
   });
 };
 
+// "Transactions on file" panel — one card per bank source, above the dropzone.
+const TransactionsOnFilePanel = () => {
+  const { data: stats = {} as Record<string, { count: number; minDate: string | null; maxDate: string | null; lastUpload: string | null }> } =
+    useBankTransactionStats();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Database className="h-4 w-4 text-muted-foreground" />
+          Transactions on file
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {BANK_OPTIONS.map((src) => {
+            const s = stats[src];
+            const empty = !s || s.count === 0;
+            return (
+              <div
+                key={src}
+                className="rounded-md border border-border bg-muted/20 p-3 text-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-foreground">{BANK_LABEL[src]}</div>
+                  {!empty && (
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {s!.count}
+                    </Badge>
+                  )}
+                </div>
+                {empty ? (
+                  <div className="mt-1 text-xs text-muted-foreground">Not yet uploaded.</div>
+                ) : (
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    <div>
+                      {format(new Date(s!.minDate!), "MMM d, yyyy")} –{" "}
+                      {format(new Date(s!.maxDate!), "MMM d, yyyy")}
+                    </div>
+                    <div>
+                      Last upload {format(new Date(s!.lastUpload!), "MMM d, yyyy")}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const TransactionImportTab = () => {
   const [rows, setRows] = useState<RowState[]>([]);
   const [filename, setFilename] = useState("");
@@ -118,13 +191,42 @@ const TransactionImportTab = () => {
   const { data: assumptionsList = [] } = useAssumptions();
   const createAlerts = useCreateAlerts();
 
+  const resetPreview = useCallback(() => {
+    setRows([]);
+    setFilename("");
+    setDetectedSource(null);
+    setWarnings([]);
+    setConfidence("high");
+  }, []);
+
   const handleFile = useCallback(
     async (file: File) => {
-      const text = await file.text();
+      // Guard against non-CSV uploads (PDFs go to the Statements tab).
+      const lower = file.name.toLowerCase();
+      const looksCsv =
+        lower.endsWith(".csv") ||
+        file.type === "text/csv" ||
+        file.type === "application/vnd.ms-excel";
+      if (!looksCsv) {
+        toast.error("Please upload a CSV file. For PDFs use the Statements tab.");
+        return;
+      }
+      let text: string;
+      try {
+        text = await file.text();
+      } catch {
+        toast.error("Could not read file. Try re-saving as UTF-8 CSV.");
+        return;
+      }
       const result = detectAndParse(text, file.name);
       if (!result.rows.length) {
         toast.error(result.warnings[0] ?? "No transactions found in file.");
+        // Still surface detection so the user can override and retry.
+        setFilename(file.name);
+        setDetectedSource(result.source);
+        setConfidence(result.confidence);
         setWarnings(result.warnings);
+        setRows([]);
         return;
       }
       const withRules = applyRules(result.rows, rules);
@@ -158,13 +260,6 @@ const TransactionImportTab = () => {
   const updateRow = (id: string, patch: Partial<RowState>) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-  const reset = () => {
-    setRows([]);
-    setFilename("");
-    setDetectedSource(null);
-    setWarnings([]);
-  };
-
   const switchSource = (next: BankSource) => {
     setDetectedSource(next);
     setRows((rs) => rs.map((r) => ({ ...r, bank_source: next })));
@@ -175,7 +270,7 @@ const TransactionImportTab = () => {
     const unmatched = rows.filter((r) => r.category === "unmatched").length;
     const byCategory: Record<string, { count: number; total: number }> = {};
     for (const r of confirmed) {
-      const k = CATEGORY_LABEL[r.category];
+      const k = CATEGORY_LABEL[r.category] ?? r.category;
       byCategory[k] = byCategory[k] ?? { count: 0, total: 0 };
       byCategory[k].count += 1;
       byCategory[k].total += Math.abs(r.amount);
@@ -196,20 +291,24 @@ const TransactionImportTab = () => {
       const key = `${r.vendor.slice(0, 24).toLowerCase()}|${r.category}|${r.bank_source}`;
       if (ruleSet.has(key)) continue;
       ruleSet.add(key);
-      // Only save short-vendor rules (heuristic: keep rule patterns concise).
       void upsertRule.mutate({
         vendor_contains: r.vendor.slice(0, 24),
         category: r.category,
         bank_source: r.bank_source,
       });
     }
-    await importMut.mutateAsync({ rows: confirmed, filename });
+    const result = await importMut.mutateAsync({ rows: confirmed, filename });
+    const unmatchedCount = summary.unmatched;
+    toast.success(
+      `Imported ${result.inserted} new transactions. ${result.skipped} already on file.${
+        unmatchedCount > 0 ? ` ${unmatchedCount} unmatched — review below.` : ""
+      }`
+    );
 
     // Run variance detection over the imported transactions
     if (assumptionsList.length > 0) {
       const assumptionMap: Record<string, number> = {};
       for (const a of assumptionsList) assumptionMap[a.key] = Number(a.value);
-      // Group txns by Monday of their week
       const byWeek = new Map<string, VarianceTxn[]>();
       for (const r of confirmed) {
         const d = new Date(r.date);
@@ -239,20 +338,24 @@ const TransactionImportTab = () => {
         }
       }
     }
-    reset();
+    // Clear preview only — keep dropzone mounted so the next file can be dropped immediately.
+    resetPreview();
   };
 
   return (
     <div className="space-y-6">
+      <TransactionsOnFilePanel />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Upload bank transactions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            The bank source is auto-detected from the CSV header and filename. Drop in any of: Brex Primary,
-            Brex Treasury, Brex Stripe Clearing, SVB Checking, SVB Money Market, or Stripe. Re-uploading the
-            same file is safe — duplicates are skipped.
+            Drop a CSV from any source: Brex Primary, Brex Treasury, Brex Stripe Clearing, SVB Checking,
+            SVB Money Market, or Stripe. The bank source is auto-detected from the header row and filename
+            — override with the dropdown if needed. Re-uploading the same file is safe; duplicates are
+            skipped on (date, vendor, amount, source).
           </p>
           <RoleGate
             role="editor"
@@ -278,26 +381,31 @@ const TransactionImportTab = () => {
             >
               <Upload className="h-6 w-6" />
               <div className="font-medium">Drop CSV here, or click to choose</div>
-              <div className="text-xs">Auto-detects Brex / SVB / Stripe formats</div>
+              <div className="text-xs">
+                Auto-detects Brex / SVB / Stripe formats · drop another file after each import
+              </div>
               <input type="file" accept=".csv,text/csv" className="hidden" onChange={onPick} />
             </label>
           </RoleGate>
         </CardContent>
       </Card>
 
-      {rows.length > 0 && (
+      {(rows.length > 0 || warnings.length > 0) && (
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                {filename}
+                {filename || "Upload preview"}
               </CardTitle>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-muted-foreground">Detected as:</span>
-                <Select value={detectedSource ?? undefined} onValueChange={(v) => switchSource(v as BankSource)}>
+                <Select
+                  value={detectedSource ?? undefined}
+                  onValueChange={(v) => switchSource(v as BankSource)}
+                >
                   <SelectTrigger className="h-7 w-[220px]">
-                    <SelectValue />
+                    <SelectValue placeholder="Choose source" />
                   </SelectTrigger>
                   <SelectContent>
                     {BANK_OPTIONS.map((b) => (
@@ -317,20 +425,24 @@ const TransactionImportTab = () => {
                 >
                   {confidence} confidence
                 </Badge>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">
-                  {summary.confirmed} of {summary.total} confirmed
-                  {summary.unmatched > 0 && (
-                    <>
-                      {" · "}
-                      <span className={warnText}>{summary.unmatched} unmatched</span>
-                    </>
-                  )}
-                </span>
+                {rows.length > 0 && (
+                  <>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">
+                      {summary.confirmed} of {summary.total} confirmed
+                      {summary.unmatched > 0 && (
+                        <>
+                          {" · "}
+                          <span className={warnText}>{summary.unmatched} unmatched</span>
+                        </>
+                      )}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={reset}>
+              <Button variant="ghost" size="sm" onClick={resetPreview}>
                 <X className="mr-1 h-4 w-4" /> Clear
               </Button>
               <Button onClick={apply} disabled={importMut.isPending || summary.confirmed === 0}>
@@ -340,9 +452,20 @@ const TransactionImportTab = () => {
           </CardHeader>
           <CardContent>
             {warnings.length > 0 && (
-              <div className={cn("mb-4 flex items-start gap-2 rounded-md border p-3 text-xs", warnBorder, warnBg, warnText)}>
+              <div
+                className={cn(
+                  "mb-4 flex items-start gap-2 rounded-md border p-3 text-xs",
+                  warnBorder,
+                  warnBg,
+                  warnText
+                )}
+              >
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="space-y-1">{warnings.map((w, i) => <div key={i}>{w}</div>)}</div>
+                <div className="space-y-1">
+                  {warnings.map((w, i) => (
+                    <div key={i}>{w}</div>
+                  ))}
+                </div>
               </div>
             )}
             {Object.keys(summary.byCategory).length > 0 && (
@@ -354,84 +477,93 @@ const TransactionImportTab = () => {
                 ))}
               </div>
             )}
-            <div className="overflow-auto rounded-md border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead className="w-28">Date</TableHead>
-                    <TableHead>Vendor</TableHead>
-                    <TableHead className="w-32 text-right">Amount</TableHead>
-                    <TableHead className="w-52">Category</TableHead>
-                    <TableHead className="w-20 text-center">Confirm</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => {
-                    const isUnmatched = r.category === "unmatched";
-                    const isSweep = r.category === "zba_sweep";
-                    return (
-                      <TableRow key={r.id} className={cn(isUnmatched && warnBg, isSweep && "opacity-60")}>
-                        <TableCell className="text-muted-foreground">
-                          {isUnmatched && <AlertCircle className={cn("h-4 w-4", warnText)} />}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-                          {format(new Date(r.date), "MMM d")}
-                        </TableCell>
-                        <TableCell className="max-w-[420px] truncate text-sm" title={r.vendor}>
-                          {r.vendor}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "text-right tabular-nums",
-                            r.amount < 0 ? "text-destructive" : "text-foreground"
-                          )}
+            {rows.length > 0 && (
+              <div className="overflow-auto rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-28">Date</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead className="w-32 text-right">Amount</TableHead>
+                      <TableHead className="w-52">Category</TableHead>
+                      <TableHead className="w-20 text-center">Confirm</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => {
+                      const isUnmatched = r.category === "unmatched";
+                      const isSweep = r.category === "zba_sweep";
+                      return (
+                        <TableRow
+                          key={r.id}
+                          className={cn(isUnmatched && warnBg, isSweep && "opacity-60")}
                         >
-                          {r.amount < 0 ? "(" : ""}
-                          {formatCurrency(Math.abs(r.amount), { compact: false })}
-                          {r.amount < 0 ? ")" : ""}
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={r.category}
-                            onValueChange={(v) =>
-                              updateRow(r.id, {
-                                category: v,
-                                confirmed: v !== "unmatched" && v !== "zba_sweep",
-                              })
-                            }
+                          <TableCell className="text-muted-foreground">
+                            {isUnmatched && <AlertCircle className={cn("h-4 w-4", warnText)} />}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+                            {format(new Date(r.date), "MMM d")}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-[420px] truncate text-sm"
+                            title={r.vendor}
                           >
-                            <SelectTrigger className={cn("h-8 text-xs", isUnmatched && warnBorder)}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {CATEGORY_OPTIONS.map((c) => (
-                                <SelectItem key={c} value={c} className="text-xs">
-                                  {CATEGORY_LABEL[c]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={r.confirmed}
-                            disabled={isUnmatched || isSweep}
-                            onCheckedChange={(c) => updateRow(r.id, { confirmed: Boolean(c) })}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                            {r.vendor}
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              "text-right tabular-nums",
+                              r.amount < 0 ? "text-destructive" : "text-foreground"
+                            )}
+                          >
+                            {r.amount < 0 ? "(" : ""}
+                            {formatCurrency(Math.abs(r.amount), { compact: false })}
+                            {r.amount < 0 ? ")" : ""}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={r.category}
+                              onValueChange={(v) =>
+                                updateRow(r.id, {
+                                  category: v,
+                                  confirmed: v !== "unmatched" && v !== "zba_sweep",
+                                })
+                              }
+                            >
+                              <SelectTrigger className={cn("h-8 text-xs", isUnmatched && warnBorder)}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CATEGORY_OPTIONS.map((c) => (
+                                  <SelectItem key={c} value={c} className="text-xs">
+                                    {CATEGORY_LABEL[c]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={r.confirmed}
+                              disabled={isUnmatched || isSweep}
+                              onCheckedChange={(c) => updateRow(r.id, { confirmed: Boolean(c) })}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
     </div>
   );
 };
+
 
 const StatementUploadsTab = () => {
   const { data: statements = [] } = useBankStatements();
