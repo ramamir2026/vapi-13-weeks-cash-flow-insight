@@ -43,6 +43,8 @@ import {
   useUpsertCategoryRule,
 } from "@/hooks/useBankData";
 import { useAssumptions, useUpdateAssumption } from "@/hooks/useFinanceData";
+import { useCreateAlerts } from "@/hooks/useAlerts";
+import { detectAlerts, type VarianceTxn } from "@/lib/variance";
 import { toast } from "sonner";
 import { RoleGate } from "@/components/RoleGate";
 
@@ -113,6 +115,8 @@ const TransactionImportTab = () => {
   const importMut = useImportBankTransactions();
   const upsertRule = useUpsertCategoryRule();
   const { data: rules = [] } = useBankCategoryRules();
+  const { data: assumptionsList = [] } = useAssumptions();
+  const createAlerts = useCreateAlerts();
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -200,6 +204,41 @@ const TransactionImportTab = () => {
       });
     }
     await importMut.mutateAsync({ rows: confirmed, filename });
+
+    // Run variance detection over the imported transactions
+    if (assumptionsList.length > 0) {
+      const assumptionMap: Record<string, number> = {};
+      for (const a of assumptionsList) assumptionMap[a.key] = Number(a.value);
+      // Group txns by Monday of their week
+      const byWeek = new Map<string, VarianceTxn[]>();
+      for (const r of confirmed) {
+        const d = new Date(r.date);
+        const day = d.getUTCDay();
+        const diff = (day + 6) % 7;
+        d.setUTCDate(d.getUTCDate() - diff);
+        const key = d.toISOString().slice(0, 10);
+        const list = byWeek.get(key) ?? [];
+        list.push({
+          date: r.date,
+          vendor: r.vendor,
+          amount: Number(r.amount),
+          category: r.category,
+          bank_source: r.bank_source,
+        });
+        byWeek.set(key, list);
+      }
+      for (const [weekStartDate, txns] of byWeek) {
+        const candidates = detectAlerts({
+          weekStartDate,
+          assumptions: assumptionMap,
+          txns,
+          bankCategoryRules: rules.map((r) => ({ vendor_contains: r.vendor_contains })),
+        });
+        if (candidates.length > 0) {
+          await createAlerts.mutateAsync({ weekStartDate, candidates });
+        }
+      }
+    }
     reset();
   };
 

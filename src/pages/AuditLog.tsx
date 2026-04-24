@@ -24,8 +24,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuditLog, useAuditUsers, type AuditEntry } from "@/hooks/useControls";
 
-const TABLES = ["assumptions", "ar_entries", "future_hires", "weekly_actuals", "model_weeks"];
-const ACTIONS = ["insert", "update", "delete", "import", "override"];
+const TABLES = ["assumptions", "ar_entries", "future_hires", "weekly_actuals", "model_weeks", "model_alerts"];
+const ACTIONS = ["insert", "update", "delete", "import", "override", "alert"];
+const ALERT_ACTIONS = ["alert_created", "alert_dismissed", "alert_resolved", "alert_reopened"];
 
 const actionTone = (a: string) => {
   switch (a) {
