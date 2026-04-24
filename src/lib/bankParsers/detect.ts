@@ -1,80 +1,187 @@
-// Bank source auto-detector. Inspects header row + filename hints, returns
-// the best-guess source with a confidence score and the parsed rows.
+// Bank source auto-detector. Scores header rows by recognized tokens so it
+// works on real-world exports where exact column names vary, then dispatches
+// to the matching parser. Always returns the parser's result (even 0 rows)
+// so the UI can show the user *why* nothing parsed instead of failing silently.
 import { parseBrexCsv } from "./brex";
 import { parseStripeCsv } from "./stripe";
 import { parseSvbCheckingCsv } from "./svbChecking";
 import { parseSvbMoneyMarketCsv } from "./svbMoneyMarket";
-import { BankSource, DetectionResult, norm, splitCsvLine } from "./types";
+import {
+  BankSource,
+  DetectionResult,
+  norm,
+  normalizeText,
+  splitCsvLine,
+} from "./types";
 
 const filenameHint = (filename: string): BankSource | null => {
   const f = filename.toLowerCase();
   if (f.includes("treasury")) return "brex_treasury";
-  if (f.includes("stripe_clearing") || f.includes("stripe-clearing") || f.includes("clearing")) return "brex_stripe_clearing";
-  if (f.includes("brex") && f.includes("primary")) return "brex_primary";
+  if (
+    f.includes("stripe_clearing") ||
+    f.includes("stripe-clearing") ||
+    f.includes("clearing")
+  )
+    return "brex_stripe_clearing";
   if (f.includes("brex")) return "brex_primary";
-  if (f.includes("money_market") || f.includes("moneymarket") || f.includes("sweep") || f.includes("mm")) return "svb_money_market";
+  if (
+    f.includes("money_market") ||
+    f.includes("moneymarket") ||
+    f.includes("sweep") ||
+    /(^|[^a-z])mm([^a-z]|$)/.test(f)
+  )
+    return "svb_money_market";
   if (f.includes("svb")) return "svb_checking";
   if (f.includes("stripe")) return "stripe";
   return null;
 };
 
-const headerCols = (text: string): string[] => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  for (let i = 0; i < Math.min(lines.length, 15); i++) {
-    const cols = splitCsvLine(lines[i]).map(norm);
-    if (cols.includes("date") || cols.includes("postingdate")) return cols;
-  }
-  return [];
+// Recognised header tokens (already passed through `norm` → lowercase, alnum only).
+const TOKENS = {
+  date: ["date", "postingdate", "postedat", "transactiondate", "initiateddate", "availableondate", "createdutc", "created"],
+  amount: ["amount", "amountusd", "transactionamount", "net", "gross"],
+  credit: ["credit", "credits", "deposit", "deposits"],
+  debit: ["debit", "debits", "withdrawal", "withdrawals"],
+  description: ["description", "memo", "details", "tofrom", "merchant", "payee", "counterparty", "type", "reportingcategory"],
+  balance: ["balance", "runningbalance", "endingbalance"],
+  status: ["status"],
+  brex: ["tofrom", "accountnumberlastfour", "accountlastfour", "last4"],
 };
 
-export const detectAndParse = (text: string, filename: string): DetectionResult => {
-  const cols = headerCols(text);
+const hasAny = (cols: string[], tokens: string[]) =>
+  tokens.some((t) => cols.includes(t));
+
+// Score each candidate header line by how many token groups it covers.
+const scoreHeader = (cols: string[]): number => {
+  let s = 0;
+  if (hasAny(cols, TOKENS.date)) s += 1;
+  if (hasAny(cols, TOKENS.amount) || hasAny(cols, TOKENS.credit) || hasAny(cols, TOKENS.debit)) s += 1;
+  if (hasAny(cols, TOKENS.description)) s += 1;
+  if (hasAny(cols, TOKENS.balance)) s += 1;
+  if (hasAny(cols, TOKENS.brex)) s += 1;
+  return s;
+};
+
+// Find the best header row in the first 20 non-empty lines.
+const findHeader = (text: string): { cols: string[]; raw: string } | null => {
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  let best: { cols: string[]; raw: string; score: number } | null = null;
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    const cols = splitCsvLine(lines[i]).map(norm);
+    const s = scoreHeader(cols);
+    if (s >= 2 && (!best || s > best.score)) {
+      best = { cols, raw: lines[i], score: s };
+    }
+  }
+  return best ? { cols: best.cols, raw: best.raw } : null;
+};
+
+export const detectAndParse = (
+  rawText: string,
+  filename: string
+): DetectionResult => {
+  const text = normalizeText(rawText);
   const hint = filenameHint(filename);
   const warnings: string[] = [];
 
-  // SVB Money Market: distinguishing marker is separate Credit/Debit columns.
-  const hasCreditDebit = cols.includes("credit") && cols.includes("debit");
-  // Brex: distinguishing markers are 'tofrom' or 'accountnumberlastfour'.
-  const hasBrexMarkers = cols.includes("tofrom") || cols.includes("accountnumberlastfour") || cols.includes("accountlastfour");
-
-  // Try each parser, prefer one that yields rows AND matches hint.
-  const candidates: Array<{ source: BankSource; rows: ReturnType<typeof parseStripeCsv> }> = [];
-
-  if (hasCreditDebit) {
-    candidates.push({ source: "svb_money_market", rows: parseSvbMoneyMarketCsv(text) });
-  } else if (hasBrexMarkers) {
-    const src: BankSource = hint && hint.startsWith("brex_") ? hint : "brex_primary";
-    candidates.push({ source: src, rows: parseBrexCsv(text, src) });
-  } else if (cols.includes("description") && cols.includes("amount") && cols.includes("balance")) {
-    // Ambiguous between SVB Checking and Stripe — both match this header shape.
-    if (hint === "stripe") {
-      candidates.push({ source: "stripe", rows: parseStripeCsv(text) });
-    } else {
-      candidates.push({ source: "svb_checking", rows: parseSvbCheckingCsv(text) });
-    }
-  } else if (cols.includes("date") && cols.includes("amount")) {
-    candidates.push({ source: "stripe", rows: parseStripeCsv(text) });
-  }
-
-  const best = candidates.find((c) => c.rows.length > 0) ?? candidates[0];
-  if (!best || best.rows.length === 0) {
+  const header = findHeader(text);
+  if (!header) {
     return {
       source: hint ?? "brex_primary",
       confidence: "low",
       rows: [],
-      warnings: ["Could not detect bank source from header row. Try renaming the file with a hint (brex/svb/stripe/treasury/mm) or re-export from your bank."],
+      warnings: [
+        "Could not find a recognizable header row (looked for Date / Amount / Description columns). Re-export from your bank or remove extra summary rows at the top of the file.",
+      ],
     };
   }
 
+  const cols = header.cols;
+  const hasCredit = hasAny(cols, TOKENS.credit);
+  const hasDebit = hasAny(cols, TOKENS.debit);
+  const hasBrex = hasAny(cols, TOKENS.brex);
+  const hasBalance = hasAny(cols, TOKENS.balance);
+  const hasDescription = hasAny(cols, TOKENS.description);
+  const hasAmount = hasAny(cols, TOKENS.amount);
+
+  // Pick source from header signals; filename only breaks ties or refines Brex flavour.
+  let source: BankSource;
   let confidence: "high" | "medium" | "low" = "high";
-  if (hint && hint !== best.source) {
+
+  if (hasBrex) {
+    source =
+      hint === "brex_treasury" || hint === "brex_stripe_clearing"
+        ? hint
+        : "brex_primary";
+  } else if (hasCredit && hasDebit) {
+    source = "svb_money_market";
+  } else if (hasDescription && hasAmount && hasBalance) {
+    // Ambiguous — SVB Checking and Stripe (with balance column) share this shape.
+    if (hint === "stripe") {
+      source = "stripe";
+    } else {
+      source = "svb_checking";
+      if (!hint) {
+        confidence = "medium";
+        warnings.push(
+          "Headers match both SVB Checking and Stripe formats — confirm bank source before importing."
+        );
+      }
+    }
+  } else if (hasDescription && hasAmount) {
+    source = "stripe";
+  } else if (hasAmount) {
+    // Bare-bones export — fall back to Stripe-style parsing.
+    source = hint ?? "stripe";
     confidence = "medium";
-    warnings.push(`Filename suggests ${hint}, but headers look like ${best.source}. Confirm before importing.`);
-  }
-  if (best.source === "svb_checking" && cols.includes("description") && cols.includes("balance") && !filenameHint(filename)) {
-    confidence = "medium";
-    warnings.push("Headers match both SVB Checking and Stripe formats — confirm bank source.");
+    warnings.push(
+      "Header row is missing some expected columns; defaulted based on filename. Confirm before importing."
+    );
+  } else {
+    return {
+      source: hint ?? "brex_primary",
+      confidence: "low",
+      rows: [],
+      warnings: ["Header row was found but no Amount / Credit / Debit column was recognised."],
+    };
   }
 
-  return { source: best.source, confidence, rows: best.rows, warnings };
+  // Filename disagreement → confidence drop + warning (Brex flavour is allowed to differ from primary).
+  if (hint && hint !== source) {
+    const sameBrexFamily = hint.startsWith("brex_") && source.startsWith("brex_");
+    if (!sameBrexFamily) {
+      confidence = "medium";
+      warnings.push(
+        `Filename suggests ${hint} but headers look like ${source}. Confirm bank source before importing.`
+      );
+    }
+  }
+
+  // Always run the parser, even if it returns zero rows.
+  let rows;
+  switch (source) {
+    case "brex_primary":
+    case "brex_treasury":
+    case "brex_stripe_clearing":
+      rows = parseBrexCsv(text, source);
+      break;
+    case "svb_money_market":
+      rows = parseSvbMoneyMarketCsv(text);
+      break;
+    case "svb_checking":
+      rows = parseSvbCheckingCsv(text);
+      break;
+    case "stripe":
+      rows = parseStripeCsv(text);
+      break;
+  }
+
+  if (!rows.length) {
+    confidence = "low";
+    warnings.push(
+      `Detected ${source} but parsed 0 transactions. The file may have an unexpected layout — try the source dropdown to override.`
+    );
+  }
+
+  return { source, confidence, rows, warnings };
 };
