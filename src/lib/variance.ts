@@ -112,7 +112,8 @@ const checkPayroll = (input: VarianceInput): AlertCandidate | null => {
 const checkRecruiting = (input: VarianceInput): AlertCandidate | null => {
   const modeled = input.assumptions["opex_recruiting"] ?? 0;
   const actual = input.txns
-    .filter((t) => t.category === "opex" && /recruit|hire|talent/i.test(t.vendor))
+    .filter((t) => t.category === 'recruiting' ||
+      (t.category === 'opex' && /recruit|hire|talent/i.test(t.vendor)))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
   if (actual === 0) return null;
   const severity = classify(modeled, actual);
