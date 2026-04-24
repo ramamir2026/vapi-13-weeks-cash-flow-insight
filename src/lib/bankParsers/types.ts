@@ -4,6 +4,7 @@ export type BankSource =
   | "brex_primary"
   | "brex_treasury"
   | "brex_stripe_clearing"
+  | "brex_card"
   | "svb_checking"
   | "svb_money_market"
   | "stripe";
@@ -12,13 +13,18 @@ export const BANK_LABEL: Record<BankSource, string> = {
   brex_primary: "Brex Primary",
   brex_treasury: "Brex Treasury",
   brex_stripe_clearing: "Brex Stripe Clearing",
+  brex_card: "Brex Card",
   svb_checking: "SVB Analysis Checking",
   svb_money_market: "SVB Money Market",
   stripe: "Stripe",
 };
 
 // Maps each bank source to the assumption key that holds its opening cash balance.
-export const BANK_TO_ASSUMPTION_KEY: Record<BankSource, string> = {
+// brex_card maps dynamically based on statement month (see cardStatement.ts) and
+// has no single static assumption key.
+export const BANK_TO_ASSUMPTION_KEY: Record<Exclude<BankSource, "brex_card">, string> & {
+  brex_card?: string;
+} = {
   brex_primary: "cash_brex_primary",
   brex_treasury: "cash_brex_treasury",
   brex_stripe_clearing: "cash_stripe_clearing",
