@@ -56,6 +56,8 @@ type Props = {
   onDelete?: () => void;
   isNew?: boolean;
   onCancelNew?: () => void;
+  isApprover?: boolean;
+  onOverrideLock?: () => void;
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -70,7 +72,7 @@ const initialFromHire = (h?: Props["hire"]): HireRowDraft => ({
   notes: h?.notes ?? "",
 });
 
-export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Props) => {
+export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew, isApprover, onOverrideLock }: Props) => {
   const [draft, setDraft] = useState<HireRowDraft>(initialFromHire(hire));
 
   useEffect(() => {
