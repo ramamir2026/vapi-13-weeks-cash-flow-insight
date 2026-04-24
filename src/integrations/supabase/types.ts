@@ -359,6 +359,89 @@ export type Database = {
         }
         Relationships: []
       }
+      model_alerts: {
+        Row: {
+          actual_amount: number
+          assumption_key: string
+          auto_resolved: boolean
+          category: string
+          created_at: string
+          created_by: string | null
+          detail: string | null
+          dismissal_reason: string | null
+          dismissed_at: string | null
+          dismissed_by: string | null
+          id: string
+          modeled_amount: number
+          parent_alert_id: string | null
+          resolved_at: string | null
+          severity: string
+          status: string
+          suggested_value: number | null
+          title: string | null
+          updated_at: string
+          variance_dollar: number
+          variance_pct: number
+          week_start_date: string
+        }
+        Insert: {
+          actual_amount?: number
+          assumption_key: string
+          auto_resolved?: boolean
+          category: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
+          dismissal_reason?: string | null
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          id?: string
+          modeled_amount?: number
+          parent_alert_id?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          suggested_value?: number | null
+          title?: string | null
+          updated_at?: string
+          variance_dollar?: number
+          variance_pct?: number
+          week_start_date: string
+        }
+        Update: {
+          actual_amount?: number
+          assumption_key?: string
+          auto_resolved?: boolean
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
+          dismissal_reason?: string | null
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          id?: string
+          modeled_amount?: number
+          parent_alert_id?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          suggested_value?: number | null
+          title?: string | null
+          updated_at?: string
+          variance_dollar?: number
+          variance_pct?: number
+          week_start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_alerts_parent_alert_id_fkey"
+            columns: ["parent_alert_id"]
+            isOneToOne: false
+            referencedRelation: "model_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       model_weeks: {
         Row: {
           ar_collections: number
@@ -473,6 +556,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      variance_snapshots: {
+        Row: {
+          actual: number
+          assumption_key: string
+          category: string | null
+          created_at: string
+          id: string
+          modeled: number
+          week_start_date: string
+        }
+        Insert: {
+          actual?: number
+          assumption_key: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          modeled?: number
+          week_start_date: string
+        }
+        Update: {
+          actual?: number
+          assumption_key?: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          modeled?: number
+          week_start_date?: string
         }
         Relationships: []
       }

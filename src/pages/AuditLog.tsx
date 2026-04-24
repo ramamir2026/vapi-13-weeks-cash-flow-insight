@@ -24,8 +24,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuditLog, useAuditUsers, type AuditEntry } from "@/hooks/useControls";
 
-const TABLES = ["assumptions", "ar_entries", "future_hires", "weekly_actuals", "model_weeks"];
-const ACTIONS = ["insert", "update", "delete", "import", "override"];
+const TABLES = ["assumptions", "ar_entries", "future_hires", "weekly_actuals", "model_weeks", "model_alerts"];
+const ACTIONS = ["insert", "update", "delete", "import", "override", "alert"];
+const ALERT_ACTIONS = ["alert_created", "alert_dismissed", "alert_resolved", "alert_reopened"];
 
 const actionTone = (a: string) => {
   switch (a) {
@@ -60,8 +61,8 @@ export default function AuditLog() {
   const filters = useMemo(
     () => ({
       user: user !== "all" ? user : undefined,
-      table: table !== "all" ? [table] : undefined,
-      action: action !== "all" ? [action] : undefined,
+      table: action === "alert" ? ["model_alerts"] : table !== "all" ? [table] : undefined,
+      action: action === "alert" ? undefined : action !== "all" ? [action] : undefined,
       startDate: startDate || undefined,
       endDate: endDate ? `${endDate}T23:59:59` : undefined,
       page,

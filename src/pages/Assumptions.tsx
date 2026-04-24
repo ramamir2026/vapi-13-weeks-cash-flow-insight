@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import { useAssumptions, useUpdateAssumption, type Assumption } from "@/hooks/useFinanceData";
+import { DriftDot } from "@/components/assumptions/DriftDot";
 
 type Flag = "yellow" | "red" | undefined;
 
@@ -144,11 +145,14 @@ const AssumptionRow = ({ a, flag, onValueChange }: AssumptionRowProps) => {
 
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-border py-3 last:border-0 sm:grid-cols-[1fr_auto] sm:items-center">
-      <div className="min-w-0">
-        <Label htmlFor={a.id} className="text-sm font-medium">
-          {a.label}
-        </Label>
-        {a.notes && <p className="mt-0.5 text-xs text-muted-foreground">{a.notes}</p>}
+      <div className="min-w-0 flex items-center gap-2">
+        <DriftDot assumptionKey={a.key} modeled={Number(a.value)} />
+        <div className="min-w-0">
+          <Label htmlFor={a.id} className="text-sm font-medium">
+            {a.label}
+          </Label>
+          {a.notes && <p className="mt-0.5 text-xs text-muted-foreground">{a.notes}</p>}
+        </div>
       </div>
       <div className="flex items-center gap-2 sm:justify-end">
         <Input

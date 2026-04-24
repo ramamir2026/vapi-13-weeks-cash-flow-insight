@@ -131,6 +131,47 @@ export const exportForecastToExcel = async (
   auditWs["!cols"] = [{ wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 36 }, { wch: 18 }, { wch: 32 }, { wch: 32 }, { wch: 16 }, { wch: 24 }];
   XLSX.utils.book_append_sheet(wb, auditWs, "Audit");
 
+  // Variance sheet — pull latest snapshots within forecast window
+  const { data: snaps } = await supabase
+    .from("variance_snapshots")
+    .select("*")
+    .gte("week_start_date", weeks[0].weekStartDate.toISOString().slice(0, 10))
+    .lt("week_start_date", endDate.toISOString().slice(0, 10))
+    .order("week_start_date", { ascending: true });
+
+  const varianceAoa: (string | number)[][] = [
+    ["Week", "Line item", "Modeled", "Actual", "Variance $", "Variance %", "Severity"],
+  ];
+  for (const s of (snaps ?? []) as Array<{
+    week_start_date: string;
+    assumption_key: string;
+    modeled: number;
+    actual: number;
+  }>) {
+    const modeled = Number(s.modeled);
+    const actual = Number(s.actual);
+    const dollar = actual - modeled;
+    const pct = modeled === 0 ? 0 : (dollar / Math.abs(modeled)) * 100;
+    const absD = Math.abs(dollar);
+    const absP = Math.abs(pct);
+    let severity = "ok";
+    if (absP > 10 && absD >= 5000) {
+      severity = absP > 50 || absD > 100_000 ? "critical" : absP > 20 || absD > 10_000 ? "warning" : "info";
+    }
+    varianceAoa.push([
+      s.week_start_date,
+      s.assumption_key,
+      fmt(modeled),
+      fmt(actual),
+      fmt(dollar),
+      Number(pct.toFixed(1)),
+      severity,
+    ]);
+  }
+  const varianceWs = XLSX.utils.aoa_to_sheet(varianceAoa);
+  varianceWs["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, varianceWs, "Variance");
+
   const filename = `vapi-cash-flow-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
   XLSX.writeFile(wb, filename);
 };

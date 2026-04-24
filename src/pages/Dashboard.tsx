@@ -25,6 +25,10 @@ import { formatCurrency, formatNumber } from "@/lib/format";
 import { ForecastGrid } from "@/components/forecast/ForecastGrid";
 import { BalanceVerificationBanner } from "@/components/dashboard/BalanceVerificationBanner";
 import { WeeklyChecklist } from "@/components/dashboard/WeeklyChecklist";
+import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
+import { useCreateAlerts, useSaveVarianceSnapshots } from "@/hooks/useAlerts";
+import { detectAlerts, type VarianceTxn } from "@/lib/variance";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 const Kpi = ({
@@ -76,6 +80,8 @@ export default function Dashboard() {
   const unsign = useUnsignWeek();
   const updateActual = useUpdateWeeklyActual();
   const saveSnapshot = useSaveForecastSnapshot();
+  const createAlerts = useCreateAlerts();
+  const saveVarianceSnapshots = useSaveVarianceSnapshots();
 
   const signoffMap = useMemo(() => {
     const m: Record<string, NonNullable<typeof signoffsList>[number]> = {};
@@ -124,7 +130,7 @@ export default function Dashboard() {
   const runwayMonths = forecast.runwayMonths;
   const ending = forecast.endingBalance;
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     const rows = forecast.weeks.map((w) => ({
       week_index: w.weekIndex,
       week_start_date: w.weekStartDate.toISOString().slice(0, 10),
@@ -143,6 +149,72 @@ export default function Dashboard() {
       runway_weeks: w.runwayMonths != null ? w.runwayMonths * 4.333 : null,
     }));
     saveSnapshot.mutate(rows);
+
+    // Run variance detection against actuals for the prior week
+    if (!assumptions || !forecast.weeks.length) return;
+    const w0 = forecast.weeks[0];
+    const weekStartIso = w0.weekStartDate.toISOString().slice(0, 10);
+    const weekEnd = new Date(w0.weekStartDate);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const [{ data: txns }, { data: rules }, { data: stmts }] = await Promise.all([
+      supabase
+        .from("bank_transactions")
+        .select("date, vendor, amount, category, bank_source")
+        .gte("date", weekStartIso)
+        .lt("date", weekEnd.toISOString().slice(0, 10)),
+      supabase.from("bank_category_rules").select("vendor_contains"),
+      supabase
+        .from("bank_statements")
+        .select("bank_source, closing_balance, statement_date")
+        .order("statement_date", { ascending: false })
+        .limit(50),
+    ]);
+
+    const assumptionMap: Record<string, number> = {};
+    for (const a of assumptions) assumptionMap[a.key] = Number(a.value);
+
+    const cashKeys = [
+      "cash_svb_mm",
+      "cash_brex_treasury",
+      "cash_brex_primary",
+      "cash_svb_checking",
+      "cash_stripe_clearing",
+    ];
+    const modeledOpening = cashKeys.reduce((s, k) => s + (assumptionMap[k] ?? 0), 0);
+    const latestPerSource = new Map<string, number>();
+    for (const s of stmts ?? []) {
+      if (!latestPerSource.has(s.bank_source)) {
+        latestPerSource.set(s.bank_source, Number(s.closing_balance));
+      }
+    }
+    const verifiedOpening = Array.from(latestPerSource.values()).reduce((s, v) => s + v, 0);
+
+    const candidates = detectAlerts({
+      weekStartDate: weekStartIso,
+      assumptions: assumptionMap,
+      txns: (txns ?? []) as VarianceTxn[],
+      bankCategoryRules: (rules ?? []) as { vendor_contains: string }[],
+      modeledAr: w0.arCollections,
+      modeledOpeningBalance: modeledOpening,
+      verifiedOpeningBalance: verifiedOpening,
+    });
+
+    await createAlerts.mutateAsync({ weekStartDate: weekStartIso, candidates });
+
+    // Snapshot variance for drift dots
+    const actualByCategory: Record<string, number> = {};
+    for (const t of (txns ?? []) as VarianceTxn[]) {
+      actualByCategory[t.category] = (actualByCategory[t.category] ?? 0) + Math.abs(Number(t.amount));
+    }
+    const snapshotRows = [
+      { assumption_key: "payroll_semi_monthly", modeled: w0.payroll, actual: actualByCategory.payroll ?? 0 },
+      { assumption_key: "ar_collections_weekly", modeled: w0.arCollections, actual: actualByCategory.ar_collections ?? 0 },
+      { assumption_key: "stripe_daily_rate", modeled: w0.stripeRevenue, actual: actualByCategory.stripe_revenue ?? 0 },
+      { assumption_key: "enterprise_ach_weekly", modeled: w0.enterpriseRevenue, actual: actualByCategory.enterprise_revenue ?? 0 },
+      { assumption_key: "opening_cash_balance", modeled: modeledOpening, actual: verifiedOpening },
+    ].map((r) => ({ ...r, week_start_date: weekStartIso }));
+    saveVarianceSnapshots.mutate(snapshotRows);
   };
 
   const handleDownload = () => {
@@ -152,6 +224,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <BalanceVerificationBanner />
+      <AlertsPanel />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">13-Week Cash Flow Forecast</h2>
