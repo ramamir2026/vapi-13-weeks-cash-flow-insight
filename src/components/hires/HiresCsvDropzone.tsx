@@ -46,12 +46,15 @@ export const HiresCsvDropzone = ({ onFile }: Props) => {
         Drop hires CSV here
       </div>
       <div className="text-xs text-muted-foreground">
-        or click to browse · columns: Name, Role, Salary, Start Date, Status
+        Accepts CSV files exported from Google Sheets, Excel, or any spreadsheet app.
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Columns: Name, Role, Salary, Start Date, Status
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,text/csv,text/plain,application/csv,application/vnd.ms-excel,application/octet-stream"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

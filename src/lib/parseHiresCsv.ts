@@ -41,23 +41,33 @@ const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 type Field = "name" | "role" | "salary" | "startDate" | "status" | "notes";
 
 const HEADER_MAP: Record<string, Field> = {
+  // Name variants
   name: "name",
   fullname: "name",
+  employeename: "name",
   hire: "name",
+  // Role variants
   role: "role",
   title: "role",
   position: "role",
   jobtitle: "role",
+  // Salary variants
   salary: "salary",
   annualsalary: "salary",
   base: "salary",
   basesalary: "salary",
+  compensation: "salary",
   comp: "salary",
+  // Start date variants
   startdate: "startDate",
   start: "startDate",
   date: "startDate",
+  hiredate: "startDate",
+  // Status variants
   status: "status",
+  offerstatus: "status",
   stage: "status",
+  // Notes
   notes: "notes",
   note: "notes",
   comments: "notes",
@@ -82,13 +92,22 @@ const mapStatus = (s: string): HireStatus => {
   if (["confirmed", "signed", "accepted", "yes", "hired"].includes(n)) return "confirmed";
   if (
     n.includes("offer") ||
-    ["offered", "offersent", "offerextended"].includes(n)
+    ["sent", "extended"].includes(n)
   ) return "offer_sent";
+  if (
+    n.includes("interview") ||
+    n === "pipeline" ||
+    n === "inprocess" ||
+    n === "inprogress"
+  ) return "interviewing";
   return "interviewing";
 };
 
-export const parseHiresCsv = (text: string): ParsedHireRow[] => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+const stripBom = (s: string) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
+
+export const parseHiresCsv = (rawText: string): ParsedHireRow[] => {
+  const text = stripBom(rawText || "").replace(/\r\n?/g, "\n");
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   // Find header row
