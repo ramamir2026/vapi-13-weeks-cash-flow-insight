@@ -52,14 +52,13 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside className="hidden w-64 flex-col bg-sidebar text-sidebar-foreground md:flex">
-        <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Wallet className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white">Vapi Cash Flow</div>
-            <div className="text-xs text-sidebar-foreground/60">Internal finance</div>
-          </div>
+        <div className="flex flex-col border-b border-sidebar-border p-4">
+          <img
+            src={vapiLogo}
+            alt="Vapi"
+            className="h-auto w-20"
+          />
+          <div className="mt-2 text-xs text-sidebar-foreground/60">Cash Flow · Internal finance</div>
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
