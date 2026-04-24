@@ -236,16 +236,6 @@ export const MondayChecklist = () => {
           <span className="text-xs text-muted-foreground">
             {completedCount} / {total}
           </span>
-          {allDone && manuallyExpanded && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setManuallyExpanded(false)}
-            >
-              <ChevronUp className="mr-1 h-4 w-4" />
-              Collapse
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-1">
