@@ -272,3 +272,50 @@ export const useToggleChecklistItem = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 };
+
+// Compute the ISO date (YYYY-MM-DD) of the Monday of the current local week.
+const mondayOfThisWeek = (): string => {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = (day + 6) % 7; // 0 if Mon, 6 if Sun
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().slice(0, 10);
+};
+
+/**
+ * Auto-check helper for app actions that should mark checklist items complete
+ * (e.g. Apply to Model, Sign off week). Idempotent: skips upsert if the item is
+ * already completed for the current week, so manual completion timestamps are
+ * preserved.
+ */
+export const useAutoCheckChecklistItem = () => {
+  return useMutation({
+    mutationFn: async ({ itemKey, email }: { itemKey: string; email: string | null }) => {
+      const week = mondayOfThisWeek();
+      // Skip if already completed for this week.
+      const { data: existing } = await supabase
+        .from("weekly_checklist")
+        .select("completed")
+        .eq("week_start_date", week)
+        .eq("item_key", itemKey)
+        .maybeSingle();
+      if (existing?.completed) return { week, itemKey, skipped: true };
+
+      const { error } = await supabase.from("weekly_checklist").upsert(
+        {
+          week_start_date: week,
+          item_key: itemKey,
+          completed: true,
+          completed_by_email: email,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: "week_start_date,item_key" }
+      );
+      if (error) throw error;
+      return { week, itemKey, skipped: false };
+    },
+    // Best-effort — never toast errors here; the user-initiated mutation already toasts.
+  });
+};
