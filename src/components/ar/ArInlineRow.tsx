@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Lock, Trash2, Unlock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import type { ArEntry } from "@/hooks/useFinanceData";
 
@@ -78,6 +79,8 @@ type Props = {
   onDelete?: () => void;
   isNew?: boolean;
   onCancelNew?: () => void;
+  isApprover?: boolean;
+  onOverrideLock?: () => void;
 };
 
 export const ArInlineRow = ({
@@ -87,6 +90,8 @@ export const ArInlineRow = ({
   onDelete,
   isNew,
   onCancelNew,
+  isApprover,
+  onOverrideLock,
 }: Props) => {
   const initial = (() => {
     if (entry) {
