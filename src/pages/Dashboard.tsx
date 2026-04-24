@@ -85,6 +85,23 @@ export default function Dashboard() {
   const saveSnapshot = useSaveForecastSnapshot();
   const createAlerts = useCreateAlerts();
   const saveVarianceSnapshots = useSaveVarianceSnapshots();
+  const autoCheck = useAutoCheckChecklistItem();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const generateBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Briefly highlight the Generate Forecast button when arriving with ?focus=generate.
+  useEffect(() => {
+    if (searchParams.get("focus") !== "generate") return;
+    const el = generateBtnRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+    const timer = window.setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [searchParams]);
 
   const signoffMap = useMemo(() => {
     const m: Record<string, NonNullable<typeof signoffsList>[number]> = {};
