@@ -25,7 +25,7 @@ import { ArInlineRow, encodeNotes, parseNotes, type ArRowDraft } from "@/compone
 import { CsvDropzone } from "@/components/ar/CsvDropzone";
 import { CsvPreviewDialog } from "@/components/ar/CsvPreviewDialog";
 import { WeeklySummaryStrip } from "@/components/ar/WeeklySummaryStrip";
-import { parseArCsv, type ParsedArRow } from "@/lib/parseArCsv";
+import { parseArCsv, ArCsvParseError, type ParsedArRow } from "@/lib/parseArCsv";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -136,14 +136,18 @@ const ArSchedule = () => {
   };
 
   const handleCsv = (text: string, fileName: string) => {
-    const rows = parseArCsv(text);
-    if (rows.length === 0) {
-      toast.error("No rows found in CSV");
-      return;
+    try {
+      const rows = parseArCsv(text);
+      setPreviewRows(rows);
+      setPreviewFile(fileName);
+      setPreviewOpen(true);
+    } catch (err) {
+      const message =
+        err instanceof ArCsvParseError
+          ? err.message
+          : "Could not read this CSV. Please check the file and try again.";
+      toast.error(message);
     }
-    setPreviewRows(rows);
-    setPreviewFile(fileName);
-    setPreviewOpen(true);
   };
 
   const handleConfirmImport = async (rows: ParsedArRow[]) => {
