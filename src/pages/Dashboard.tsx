@@ -23,6 +23,8 @@ import { buildAssumptionMap, buildForecast } from "@/lib/forecast";
 import { exportForecastToExcel } from "@/lib/exportExcel";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { ForecastGrid } from "@/components/forecast/ForecastGrid";
+import { BalanceVerificationBanner } from "@/components/dashboard/BalanceVerificationBanner";
+import { WeeklyChecklist } from "@/components/dashboard/WeeklyChecklist";
 import { cn } from "@/lib/utils";
 
 const Kpi = ({
@@ -149,6 +151,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <BalanceVerificationBanner />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">13-Week Cash Flow Forecast</h2>
@@ -207,6 +210,8 @@ export default function Dashboard() {
         onSignOff={(iso) => signOff.mutate(iso)}
         onUnsign={(iso) => unsign.mutate(iso)}
       />
+
+      <WeeklyChecklist />
     </div>
   );
 }

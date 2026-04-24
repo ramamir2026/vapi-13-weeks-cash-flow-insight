@@ -10,6 +10,7 @@ import {
   ScrollText,
   ShieldCheck,
   Banknote,
+  ListOrdered,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentRole } from "@/hooks/useControls";
@@ -23,6 +24,7 @@ const baseNavItems = [
   { to: "/ar-schedule", label: "A/R Schedule", icon: Receipt },
   { to: "/future-hires", label: "Future Hires", icon: UserPlus },
   { to: "/bank-imports", label: "Bank Imports", icon: Banknote },
+  { to: "/transactions", label: "Transactions", icon: ListOrdered },
   { to: "/audit-log", label: "Audit Log", icon: ScrollText },
 ];
 const adminNavItem = { to: "/admin-settings", label: "Admin Settings", icon: ShieldCheck };
