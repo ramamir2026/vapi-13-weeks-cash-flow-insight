@@ -40,37 +40,44 @@ const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 type Field = "name" | "role" | "salary" | "startDate" | "status" | "notes";
 
-const HEADER_MAP: Record<string, Field> = {
-  // Name variants
-  name: "name",
-  fullname: "name",
-  employeename: "name",
-  hire: "name",
+// Higher priority wins when multiple columns could map to the same field.
+// e.g. "Compensation" beats "Base Salary"; "Start Date" beats "Est Start Date";
+// "New Hire" beats generic "Name".
+const HEADER_MAP: Record<string, { field: Field; priority: number }> = {
+  // Name variants — "New Hire" is the actual person in Google Sheets roadmap
+  newhire: { field: "name", priority: 10 },
+  name: { field: "name", priority: 5 },
+  fullname: { field: "name", priority: 5 },
+  employeename: { field: "name", priority: 5 },
+  hire: { field: "name", priority: 3 },
   // Role variants
-  role: "role",
-  title: "role",
-  position: "role",
-  jobtitle: "role",
-  // Salary variants
-  salary: "salary",
-  annualsalary: "salary",
-  base: "salary",
-  basesalary: "salary",
-  compensation: "salary",
-  comp: "salary",
-  // Start date variants
-  startdate: "startDate",
-  start: "startDate",
-  date: "startDate",
-  hiredate: "startDate",
+  role: { field: "role", priority: 10 },
+  title: { field: "role", priority: 5 },
+  position: { field: "role", priority: 5 },
+  jobtitle: { field: "role", priority: 5 },
+  // Salary variants — "Compensation" is the negotiated salary, beats "Base Salary"
+  compensation: { field: "salary", priority: 10 },
+  comp: { field: "salary", priority: 8 },
+  annualsalary: { field: "salary", priority: 7 },
+  salary: { field: "salary", priority: 6 },
+  basesalary: { field: "salary", priority: 4 },
+  base: { field: "salary", priority: 3 },
+  // Start date variants — actual "Start Date" beats "Est Start Date"
+  startdate: { field: "startDate", priority: 10 },
+  hiredate: { field: "startDate", priority: 8 },
+  eststartdate: { field: "startDate", priority: 4 },
+  estimatedstartdate: { field: "startDate", priority: 4 },
+  start: { field: "startDate", priority: 3 },
+  date: { field: "startDate", priority: 1 },
   // Status variants
-  status: "status",
-  offerstatus: "status",
-  stage: "status",
+  hiringstage: { field: "status", priority: 10 },
+  status: { field: "status", priority: 8 },
+  offerstatus: { field: "status", priority: 8 },
+  stage: { field: "status", priority: 6 },
   // Notes
-  notes: "notes",
-  note: "notes",
-  comments: "notes",
+  notes: { field: "notes", priority: 10 },
+  note: { field: "notes", priority: 8 },
+  comments: { field: "notes", priority: 6 },
 };
 
 const parseAmount = (s: string): number => {
@@ -87,13 +94,13 @@ const toIsoDate = (s: string): string | null => {
 };
 
 const mapStatus = (s: string): HireStatus => {
+  const raw = (s || "").trim().toLowerCase();
   const n = normalize(s || "");
   if (!n) return "interviewing";
+  // Explicit Google Sheets roadmap stages
+  if (raw.includes("offer letter accepted")) return "confirmed";
   if (["confirmed", "signed", "accepted", "yes", "hired"].includes(n)) return "confirmed";
-  if (
-    n.includes("offer") ||
-    ["sent", "extended"].includes(n)
-  ) return "offer_sent";
+  if (n.includes("offer") || ["sent", "extended"].includes(n)) return "offer_sent";
   if (
     n.includes("interview") ||
     n === "pipeline" ||
@@ -105,21 +112,44 @@ const mapStatus = (s: string): HireStatus => {
 
 const stripBom = (s: string) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
 
+const isBlankDate = (s: string): boolean => {
+  const v = (s || "").trim().toLowerCase();
+  if (!v) return true;
+  if (["tbd", "tba", "n/a", "na", "-", "—", "?", "pending", "unknown"].includes(v)) return true;
+  return false;
+};
+
 export const parseHiresCsv = (rawText: string): ParsedHireRow[] => {
   const text = stripBom(rawText || "").replace(/\r\n?/g, "\n");
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
-  // Find header row
+  // Find header row — pick the row with the most mappable headers in the first 10
   let headerIdx = -1;
   let mapped: (Field | null)[] = [];
+  let bestCount = 0;
   for (let i = 0; i < Math.min(lines.length, 10); i++) {
     const cols = splitCsvLine(lines[i]);
-    const m = cols.map((c) => HEADER_MAP[normalize(c)] ?? null);
-    if (m.filter(Boolean).length >= 2) {
+    // Priority-based per-field assignment: each field goes to the highest-priority column.
+    const winners: Partial<Record<Field, { idx: number; priority: number }>> = {};
+    cols.forEach((c, idx) => {
+      const entry = HEADER_MAP[normalize(c)];
+      if (!entry) return;
+      const cur = winners[entry.field];
+      if (!cur || entry.priority > cur.priority) {
+        winners[entry.field] = { idx, priority: entry.priority };
+      }
+    });
+    const m: (Field | null)[] = cols.map(() => null);
+    (Object.keys(winners) as Field[]).forEach((f) => {
+      const w = winners[f]!;
+      m[w.idx] = f;
+    });
+    const count = m.filter(Boolean).length;
+    if (count >= 2 && count > bestCount) {
       headerIdx = i;
       mapped = m;
-      break;
+      bestCount = count;
     }
   }
   if (headerIdx < 0) return [];
@@ -137,15 +167,20 @@ export const parseHiresCsv = (rawText: string): ParsedHireRow[] => {
 
     const name = (rec.name || "").trim();
     const role = (rec.role || "").trim();
+    // Skip open roles (no hire) and rows missing role
     if (!name || !role) continue;
     if (/^(total|grand total|subtotal)/i.test(name)) continue;
+    // Skip rows where Start Date is empty / TBD / blank
+    if (isBlankDate(rec.startDate || "")) continue;
+
+    const startDateIso = toIsoDate(rec.startDate || "");
+    if (!startDateIso) continue;
 
     const annualSalary = parseAmount(rec.salary || "");
-    const startDate = toIsoDate(rec.startDate || "") || new Date().toISOString().slice(0, 10);
     const status = mapStatus(rec.status || "");
     const notes = (rec.notes || "").trim();
 
-    rows.push({ name, role, annualSalary, startDate, status, notes });
+    rows.push({ name, role, annualSalary, startDate: startDateIso, status, notes });
   }
   return rows;
 };
