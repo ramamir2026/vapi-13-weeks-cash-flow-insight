@@ -44,6 +44,39 @@ export const useBankTransactions = (filters?: {
     },
   });
 
+// Per-source aggregates for the "Transactions on file" panel above the dropzone.
+export type BankSourceStats = {
+  count: number;
+  minDate: string | null;
+  maxDate: string | null;
+  lastUpload: string | null;
+};
+
+export const useBankTransactionStats = () =>
+  useQuery({
+    queryKey: ["bank_transactions", "stats"],
+    queryFn: async () => {
+      // Pull just the columns we need; RLS-scoped, ordered for cheap min/max.
+      const { data, error } = await supabase
+        .from("bank_transactions")
+        .select("bank_source, date, created_at")
+        .order("date", { ascending: false })
+        .limit(20000);
+      if (error) throw error;
+      const out: Record<string, BankSourceStats> = {};
+      for (const row of data ?? []) {
+        const k = row.bank_source as string;
+        const s = out[k] ?? { count: 0, minDate: null, maxDate: null, lastUpload: null };
+        s.count += 1;
+        if (!s.maxDate || row.date > s.maxDate) s.maxDate = row.date;
+        if (!s.minDate || row.date < s.minDate) s.minDate = row.date;
+        if (!s.lastUpload || row.created_at > s.lastUpload) s.lastUpload = row.created_at;
+        out[k] = s;
+      }
+      return out as Record<BankSource, BankSourceStats>;
+    },
+  });
+
 export const useImportBankTransactions = () => {
   const qc = useQueryClient();
   return useMutation({
