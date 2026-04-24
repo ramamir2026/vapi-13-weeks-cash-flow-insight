@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Assumptions from "./pages/Assumptions";
 import ArSchedule from "./pages/ArSchedule";
 import FutureHires from "./pages/FutureHires";
+import VarianceInsights from "./pages/VarianceInsights";
 import AuditLog from "./pages/AuditLog";
 import AdminSettings from "./pages/AdminSettings";
 import BankImports from "./pages/BankImports";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/assumptions" element={<Shell><Assumptions /></Shell>} />
             <Route path="/ar-schedule" element={<Shell><ArSchedule /></Shell>} />
             <Route path="/future-hires" element={<Shell><FutureHires /></Shell>} />
+            <Route path="/variance" element={<Shell><VarianceInsights /></Shell>} />
             <Route path="/audit-log" element={<Shell><AuditLog /></Shell>} />
             <Route path="/bank-imports" element={<Shell><BankImports /></Shell>} />
             <Route path="/transactions" element={<Shell><Transactions /></Shell>} />

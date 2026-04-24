@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Banknote,
   ListOrdered,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentRole } from "@/hooks/useControls";
@@ -23,6 +24,7 @@ const baseNavItems = [
   { to: "/assumptions", label: "Assumptions", icon: Settings2 },
   { to: "/ar-schedule", label: "A/R Schedule", icon: Receipt },
   { to: "/future-hires", label: "Future Hires", icon: UserPlus },
+  { to: "/variance", label: "Variance & Insights", icon: TrendingUp },
   { to: "/bank-imports", label: "Bank Imports", icon: Banknote },
   { to: "/transactions", label: "Transactions", icon: ListOrdered },
   { to: "/audit-log", label: "Audit Log", icon: ScrollText },
