@@ -50,11 +50,9 @@ const CATEGORY_OPTIONS: SvbCategory[] = [
   "unmatched",
 ];
 
-const categoryTone = (c: SvbCategory): string => {
-  if (c === "unmatched") return "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400";
-  if (c === "zba_sweep") return "bg-muted text-muted-foreground border-border";
-  return "bg-primary/10 text-primary border-primary/30";
-};
+const warnText = "text-[hsl(var(--warn-amber))]";
+const warnBg = "bg-[hsl(var(--warn-amber))]/10";
+const warnBorder = "border-[hsl(var(--warn-amber))]/40";
 
 const BankImports = () => {
   const qc = useQueryClient();
@@ -246,9 +244,7 @@ const BankImports = () => {
                 {summary.unmatched > 0 && (
                   <>
                     {" · "}
-                    <span className="text-amber-600 dark:text-amber-400">
-                      {summary.unmatched} unmatched
-                    </span>
+                    <span className={warnText}>{summary.unmatched} unmatched</span>
                   </>
                 )}
               </p>
@@ -276,7 +272,7 @@ const BankImports = () => {
               </div>
             )}
             {summary.unmatched > 0 && (
-              <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+              <div className={cn("mb-4 flex items-start gap-2 rounded-md border p-3 text-sm", warnBorder, warnBg, warnText)}>
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   {summary.unmatched} transaction{summary.unmatched === 1 ? "" : "s"} need a
@@ -340,7 +336,7 @@ const BankImports = () => {
                             <SelectTrigger
                               className={cn(
                                 "h-8 text-xs",
-                                isUnmatched && "border-amber-500/50"
+                                isUnmatched && warnBorder
                               )}
                             >
                               <SelectValue />
