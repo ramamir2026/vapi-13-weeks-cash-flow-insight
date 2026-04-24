@@ -1,10 +1,11 @@
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 import type { ForecastResult } from "./forecast";
 
 const fmt = (n: number) => Math.round(n);
 
-export const exportForecastToExcel = (
+export const exportForecastToExcel = async (
   forecast: ForecastResult,
   actuals: Record<string, number> = {}
 ) => {
@@ -99,6 +100,36 @@ export const exportForecastToExcel = (
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "13-Week Forecast");
+
+  // Audit sheet — pull entries within the forecast window
+  const startIso = weeks[0].weekStartDate.toISOString();
+  const endDate = new Date(weeks[weeks.length - 1].weekStartDate);
+  endDate.setDate(endDate.getDate() + 7);
+  const { data: audit } = await supabase
+    .from("audit_log")
+    .select("*")
+    .gte("created_at", startIso)
+    .lt("created_at", endDate.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(5000);
+  const auditAoa = [
+    ["Timestamp", "User", "Action", "Table", "Row ID", "Field", "Old", "New", "Source", "Import filename"],
+    ...((audit ?? []) as any[]).map((r) => [
+      r.created_at,
+      r.user_email ?? "",
+      r.action,
+      r.table_name,
+      r.row_id ?? "",
+      r.field_name ?? "",
+      (r.old_value ?? "").toString().slice(0, 200),
+      (r.new_value ?? "").toString().slice(0, 200),
+      r.source,
+      r.import_filename ?? "",
+    ]),
+  ];
+  const auditWs = XLSX.utils.aoa_to_sheet(auditAoa);
+  auditWs["!cols"] = [{ wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 36 }, { wch: 18 }, { wch: 32 }, { wch: 32 }, { wch: 16 }, { wch: 24 }];
+  XLSX.utils.book_append_sheet(wb, auditWs, "Audit");
 
   const filename = `vapi-cash-flow-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
   XLSX.writeFile(wb, filename);

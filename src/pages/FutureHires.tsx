@@ -31,6 +31,7 @@ import {
   periodCellAmount,
   periodsToWeeks,
 } from "@/lib/payrollPeriods";
+import { setImportContext, useIsApprover, useOverrideImportLock } from "@/hooks/useControls";
 import { formatCurrency } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -39,6 +40,8 @@ const FutureHires = () => {
   const upsert = useUpsertHire();
   const del = useDeleteHire();
   const apply = useApplyHirePayrollOverride();
+  const isApprover = useIsApprover();
+  const overrideLock = useOverrideImportLock();
 
   const [showNew, setShowNew] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -77,6 +80,7 @@ const FutureHires = () => {
     let fail = 0;
     for (const r of rows) {
       try {
+        await setImportContext(previewFile);
         await upsert.mutateAsync({
           name: r.name,
           role: r.role,
@@ -84,7 +88,10 @@ const FutureHires = () => {
           start_date: r.startDate,
           status: r.status,
           notes: r.notes || null,
-        } as Partial<FutureHire>);
+          source: "import",
+          import_filename: previewFile,
+          import_locked: true,
+        } as any);
         ok++;
       } catch {
         fail++;
@@ -173,6 +180,8 @@ const FutureHires = () => {
                     hire={h}
                     onSave={handleSaveRow}
                     onDelete={() => del.mutate(h.id)}
+                    isApprover={isApprover}
+                    onOverrideLock={() => overrideLock.mutate({ table: "future_hires", rowId: h.id })}
                   />
                 ))}
                 {showNew && (

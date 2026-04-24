@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Lock, Trash2, Unlock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import type { ArEntry } from "@/hooks/useFinanceData";
 
@@ -78,6 +79,8 @@ type Props = {
   onDelete?: () => void;
   isNew?: boolean;
   onCancelNew?: () => void;
+  isApprover?: boolean;
+  onOverrideLock?: () => void;
 };
 
 export const ArInlineRow = ({
@@ -87,6 +90,8 @@ export const ArInlineRow = ({
   onDelete,
   isNew,
   onCancelNew,
+  isApprover,
+  onOverrideLock,
 }: Props) => {
   const initial = (() => {
     if (entry) {
@@ -138,8 +143,12 @@ export const ArInlineRow = ({
   const probDisplay = draft.prob_override ?? autoProb;
   const week = weekFromExpected(draft.expected_collection_date, forecastStartIso);
   const weighted = draft.invoice_amount * (probDisplay / 100);
+  const locked = !!entry?.import_locked;
+  const lockTip = locked ? `Imported from ${entry?.import_filename ?? "CSV"} — approver override required` : undefined;
+  const lockTint = locked ? "bg-muted/60" : "";
 
   const persist = async (next: ArRowDraft) => {
+    if (locked) return;
     if (isNew && (!next.customer_name.trim() || !next.invoice_amount)) return;
     await onSave({
       id: next.id,
@@ -159,25 +168,27 @@ export const ArInlineRow = ({
 
   return (
     <TableRow>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)} title={lockTip}>
         <Input
           value={draft.customer_name}
           onChange={(e) => setDraft({ ...draft, customer_name: e.target.value })}
           onBlur={blurSave}
           placeholder="Customer name"
           className="h-8"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           value={draft.invoice_number}
           onChange={(e) => setDraft({ ...draft, invoice_number: e.target.value })}
           onBlur={blurSave}
           placeholder="—"
           className="h-8"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           type="number"
           value={draft.invoice_amount || ""}
@@ -186,21 +197,23 @@ export const ArInlineRow = ({
           }
           onBlur={blurSave}
           className="h-8 text-right tabular-nums"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           type="date"
           value={draft.invoice_date}
           onChange={(e) => setDraft({ ...draft, invoice_date: e.target.value })}
           onBlur={blurSave}
           className="h-8"
+          disabled={locked}
         />
         <div className="mt-1 text-right text-[10px] text-muted-foreground">
           {aging}d aging
         </div>
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           type="number"
           min={0}
@@ -212,6 +225,7 @@ export const ArInlineRow = ({
           }}
           onBlur={blurSave}
           className="h-8 text-right tabular-nums"
+          disabled={locked}
         />
         {draft.prob_override != null && (
           <div className="mt-1 text-right text-[10px] text-muted-foreground">
@@ -219,9 +233,10 @@ export const ArInlineRow = ({
           </div>
         )}
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Select
           value={String(week)}
+          disabled={locked}
           onValueChange={(v) => {
             const w = parseInt(v, 10);
             const next = { ...draft, expected_collection_date: expectedFromWeek(w, forecastStartIso) };
@@ -241,16 +256,17 @@ export const ArInlineRow = ({
           </SelectContent>
         </Select>
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           value={draft.notes}
           onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
           onBlur={blurSave}
           placeholder="—"
           className="h-8"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2 text-right text-xs tabular-nums text-muted-foreground">
+      <TableCell className={cn("p-2 text-right text-xs tabular-nums text-muted-foreground", lockTint)}>
         {formatCurrency(weighted)}
       </TableCell>
       <TableCell className="p-2">
@@ -258,6 +274,21 @@ export const ArInlineRow = ({
           <Button variant="ghost" size="sm" onClick={onCancelNew}>
             Cancel
           </Button>
+        ) : locked ? (
+          isApprover ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOverrideLock}
+              title={lockTip}
+              className="h-8 gap-1"
+            >
+              <Unlock className="h-3.5 w-3.5" />
+              Override
+            </Button>
+          ) : (
+            <Lock className="h-4 w-4 text-muted-foreground" aria-label="Imported (read-only)" />
+          )
         ) : (
           <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8">
             <Trash2 className="h-4 w-4" />

@@ -7,21 +7,38 @@ import {
   UserPlus,
   LogOut,
   Wallet,
+  ScrollText,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentRole } from "@/hooks/useControls";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/assumptions", label: "Assumptions", icon: Settings2 },
   { to: "/ar-schedule", label: "A/R Schedule", icon: Receipt },
   { to: "/future-hires", label: "Future Hires", icon: UserPlus },
+  { to: "/audit-log", label: "Audit Log", icon: ScrollText },
 ];
+
+const ROLE_LABEL: Record<string, string> = {
+  approver: "Approver",
+  editor: "Editor",
+  viewer: "Viewer",
+};
+
+const ROLE_TONE: Record<string, string> = {
+  approver: "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border-[hsl(var(--success))]/30",
+  editor: "bg-primary/15 text-primary border-primary/30",
+  viewer: "bg-muted text-muted-foreground border-border",
+};
 
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const { data: role } = useCurrentRole();
   const currentPage = navItems.find((n) => n.to === location.pathname)?.label ?? "Dashboard";
 
   return (
@@ -63,8 +80,13 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
-          <div className="mb-2 px-3 text-xs text-sidebar-foreground/60">
-            {user?.email}
+          <div className="mb-2 flex items-center justify-between gap-2 px-3">
+            <div className="truncate text-xs text-sidebar-foreground/60">{user?.email}</div>
+            {role && (
+              <Badge variant="outline" className={cn("text-[10px] uppercase tracking-wide", ROLE_TONE[role])}>
+                {ROLE_LABEL[role]}
+              </Badge>
+            )}
           </div>
           <Button
             variant="ghost"

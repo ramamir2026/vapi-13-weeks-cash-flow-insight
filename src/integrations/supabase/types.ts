@@ -21,10 +21,13 @@ export type Database = {
           customer_name: string
           expected_collection_date: string
           id: string
+          import_filename: string | null
+          import_locked: boolean
           invoice_amount: number
           invoice_date: string
           invoice_number: string | null
           notes: string | null
+          source: string
           status: Database["public"]["Enums"]["ar_status"]
           updated_at: string
         }
@@ -34,10 +37,13 @@ export type Database = {
           customer_name: string
           expected_collection_date: string
           id?: string
+          import_filename?: string | null
+          import_locked?: boolean
           invoice_amount?: number
           invoice_date: string
           invoice_number?: string | null
           notes?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["ar_status"]
           updated_at?: string
         }
@@ -47,10 +53,13 @@ export type Database = {
           customer_name?: string
           expected_collection_date?: string
           id?: string
+          import_filename?: string | null
+          import_locked?: boolean
           invoice_amount?: number
           invoice_date?: string
           invoice_number?: string | null
           notes?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["ar_status"]
           updated_at?: string
         }
@@ -119,6 +128,51 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          field_name: string | null
+          id: string
+          import_filename: string | null
+          new_value: string | null
+          old_value: string | null
+          row_id: string | null
+          source: string
+          table_name: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          import_filename?: string | null
+          new_value?: string | null
+          old_value?: string | null
+          row_id?: string | null
+          source?: string
+          table_name: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          import_filename?: string | null
+          new_value?: string | null
+          old_value?: string | null
+          row_id?: string | null
+          source?: string
+          table_name?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       future_hires: {
         Row: {
           annual_salary: number
@@ -126,9 +180,12 @@ export type Database = {
           created_by: string | null
           department: string | null
           id: string
+          import_filename: string | null
+          import_locked: boolean
           name: string
           notes: string | null
           role: string
+          source: string
           start_date: string
           status: Database["public"]["Enums"]["hire_status"]
           updated_at: string
@@ -139,9 +196,12 @@ export type Database = {
           created_by?: string | null
           department?: string | null
           id?: string
+          import_filename?: string | null
+          import_locked?: boolean
           name: string
           notes?: string | null
           role: string
+          source?: string
           start_date: string
           status?: Database["public"]["Enums"]["hire_status"]
           updated_at?: string
@@ -152,9 +212,12 @@ export type Database = {
           created_by?: string | null
           department?: string | null
           id?: string
+          import_filename?: string | null
+          import_locked?: boolean
           name?: string
           notes?: string | null
           role?: string
+          source?: string
           start_date?: string
           status?: Database["public"]["Enums"]["hire_status"]
           updated_at?: string
@@ -305,6 +368,33 @@ export type Database = {
         }
         Relationships: []
       }
+      week_signoffs: {
+        Row: {
+          approved_at: string
+          approved_by_email: string
+          approved_by_user_id: string
+          id: string
+          note: string | null
+          week_start_date: string
+        }
+        Insert: {
+          approved_at?: string
+          approved_by_email: string
+          approved_by_user_id: string
+          id?: string
+          note?: string | null
+          week_start_date: string
+        }
+        Update: {
+          approved_at?: string
+          approved_by_email?: string
+          approved_by_user_id?: string
+          id?: string
+          note?: string | null
+          week_start_date?: string
+        }
+        Relationships: []
+      }
       weekly_actuals: {
         Row: {
           actual_burn: number | null
@@ -312,7 +402,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          import_filename: string | null
+          import_locked: boolean
           notes: string | null
+          source: string
           updated_at: string
           week_start_date: string
         }
@@ -322,7 +415,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          import_filename?: string | null
+          import_locked?: boolean
           notes?: string | null
+          source?: string
           updated_at?: string
           week_start_date: string
         }
@@ -332,7 +428,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          import_filename?: string | null
+          import_locked?: boolean
           notes?: string | null
+          source?: string
           updated_at?: string
           week_start_date?: string
         }
@@ -343,6 +442,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clear_import_lock: {
+        Args: { p_row: string; p_table: string }
+        Returns: undefined
+      }
+      current_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -350,9 +457,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_import_context: { Args: { filename: string }; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "viewer" | "editor" | "approver"
       ar_status: "pending" | "collected" | "overdue" | "written_off"
       hire_status: "confirmed" | "offer_sent" | "interviewing"
     }
@@ -482,7 +590,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "viewer", "editor", "approver"],
       ar_status: ["pending", "collected", "overdue", "written_off"],
       hire_status: ["confirmed", "offer_sent", "interviewing"],
     },

@@ -52,6 +52,9 @@ export type ArEntry = {
   expected_collection_date: string;
   status: "pending" | "collected" | "overdue" | "written_off";
   notes: string | null;
+  source?: string;
+  import_filename?: string | null;
+  import_locked?: boolean;
 };
 
 export const useArEntries = () =>
@@ -115,6 +118,9 @@ export type FutureHire = {
   annual_salary: number;
   status: HireStatus;
   notes: string | null;
+  source?: string;
+  import_filename?: string | null;
+  import_locked?: boolean;
 };
 
 export const useFutureHires = () =>

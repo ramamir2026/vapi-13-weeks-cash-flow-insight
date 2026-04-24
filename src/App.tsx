@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Assumptions from "./pages/Assumptions";
 import ArSchedule from "./pages/ArSchedule";
 import FutureHires from "./pages/FutureHires";
+import AuditLog from "./pages/AuditLog";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/assumptions" element={<Shell><Assumptions /></Shell>} />
             <Route path="/ar-schedule" element={<Shell><ArSchedule /></Shell>} />
             <Route path="/future-hires" element={<Shell><FutureHires /></Shell>} />
+            <Route path="/audit-log" element={<Shell><AuditLog /></Shell>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

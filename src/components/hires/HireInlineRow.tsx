@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarIcon, Trash2 } from "lucide-react";
+import { CalendarIcon, Lock, Trash2, Unlock } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,8 @@ type Props = {
   onDelete?: () => void;
   isNew?: boolean;
   onCancelNew?: () => void;
+  isApprover?: boolean;
+  onOverrideLock?: () => void;
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -70,7 +72,7 @@ const initialFromHire = (h?: Props["hire"]): HireRowDraft => ({
   notes: h?.notes ?? "",
 });
 
-export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Props) => {
+export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew, isApprover, onOverrideLock }: Props) => {
   const [draft, setDraft] = useState<HireRowDraft>(initialFromHire(hire));
 
   useEffect(() => {
@@ -78,7 +80,12 @@ export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hire?.id]);
 
+  const locked = !!hire?.import_locked;
+  const lockTip = locked ? `Imported from ${hire?.import_filename ?? "CSV"} — approver override required` : undefined;
+  const lockTint = locked ? "bg-muted/60" : "";
+
   const persist = async (next: HireRowDraft) => {
+    if (locked) return;
     if (isNew) {
       if (!next.name.trim() || !next.role.trim() || !next.annual_salary || !next.start_date) return;
     }
@@ -106,25 +113,27 @@ export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Pr
 
   return (
     <TableRow>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)} title={lockTip}>
         <Input
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           onBlur={blurSave}
           placeholder="Name"
           className="h-8"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           value={draft.role}
           onChange={(e) => setDraft({ ...draft, role: e.target.value })}
           onBlur={blurSave}
           placeholder="Role"
           className="h-8"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           type="number"
           value={draft.annual_salary || ""}
@@ -133,14 +142,16 @@ export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Pr
           }
           onBlur={blurSave}
           className="h-8 text-right tabular-nums"
+          disabled={locked}
         />
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               className="h-8 w-full justify-start text-left font-normal"
+              disabled={locked}
             >
               <CalendarIcon className="mr-2 h-3.5 w-3.5" />
               {startDateObj ? format(startDateObj, "MMM d, yyyy") : "Pick a date"}
@@ -163,9 +174,10 @@ export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Pr
           </PopoverContent>
         </Popover>
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Select
           value={draft.status}
+          disabled={locked}
           onValueChange={(v) => {
             const next = { ...draft, status: v as HireStatus };
             setDraft(next);
@@ -186,13 +198,14 @@ export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Pr
           </SelectContent>
         </Select>
       </TableCell>
-      <TableCell className="p-2">
+      <TableCell className={cn("p-2", lockTint)}>
         <Input
           value={draft.notes}
           onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
           onBlur={blurSave}
           placeholder="—"
           className="h-8"
+          disabled={locked}
         />
       </TableCell>
       <TableCell className="p-2">
@@ -200,6 +213,21 @@ export const HireInlineRow = ({ hire, onSave, onDelete, isNew, onCancelNew }: Pr
           <Button variant="ghost" size="sm" onClick={onCancelNew}>
             Cancel
           </Button>
+        ) : locked ? (
+          isApprover ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOverrideLock}
+              title={lockTip}
+              className="h-8 gap-1"
+            >
+              <Unlock className="h-3.5 w-3.5" />
+              Override
+            </Button>
+          ) : (
+            <Lock className="h-4 w-4 text-muted-foreground" aria-label="Imported (read-only)" />
+          )
         ) : (
           <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8">
             <Trash2 className="h-4 w-4" />

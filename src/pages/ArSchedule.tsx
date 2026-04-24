@@ -18,6 +18,7 @@ import {
   useApplyArOverride,
   type ArEntry,
 } from "@/hooks/useFinanceData";
+import { setImportContext, useIsApprover, useOverrideImportLock } from "@/hooks/useControls";
 import { ArInlineRow, encodeNotes, parseNotes, type ArRowDraft } from "@/components/ar/ArInlineRow";
 import { CsvDropzone } from "@/components/ar/CsvDropzone";
 import { CsvPreviewDialog } from "@/components/ar/CsvPreviewDialog";
@@ -48,6 +49,8 @@ const ArSchedule = () => {
   const upsert = useUpsertArEntry();
   const del = useDeleteArEntry();
   const applyOverride = useApplyArOverride();
+  const isApprover = useIsApprover();
+  const overrideLock = useOverrideImportLock();
 
   const [showNew, setShowNew] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -149,6 +152,7 @@ const ArSchedule = () => {
       const expected = new Date(forecastStartIso);
       expected.setDate(expected.getDate() + (r.expectedWeek - 1) * 7);
       try {
+        await setImportContext(previewFile);
         await upsert.mutateAsync({
           customer_name: r.customer,
           invoice_number: r.invoiceNumber || null,
@@ -157,6 +161,9 @@ const ArSchedule = () => {
           expected_collection_date: expected.toISOString().slice(0, 10),
           notes: encodeNotes("", Math.round(r.probability * 100)),
           status: "pending",
+          source: "import",
+          import_filename: previewFile,
+          import_locked: true,
         } as any);
         ok++;
       } catch {
@@ -228,6 +235,8 @@ const ArSchedule = () => {
                     forecastStartIso={forecastStartIso}
                     onSave={handleSaveRow}
                     onDelete={() => del.mutate(entry.id)}
+                    isApprover={isApprover}
+                    onOverrideLock={() => overrideLock.mutate({ table: "ar_entries", rowId: entry.id })}
                   />
                 ))}
                 {showNew && (

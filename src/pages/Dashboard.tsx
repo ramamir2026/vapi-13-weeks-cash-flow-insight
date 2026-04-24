@@ -13,6 +13,12 @@ import {
   useUpdateWeeklyActual,
   useWeeklyActuals,
 } from "@/hooks/useFinanceData";
+import {
+  useIsApprover,
+  useSignOffWeek,
+  useUnsignWeek,
+  useWeekSignoffs,
+} from "@/hooks/useControls";
 import { buildAssumptionMap, buildForecast } from "@/lib/forecast";
 import { exportForecastToExcel } from "@/lib/exportExcel";
 import { formatCurrency, formatNumber } from "@/lib/format";
@@ -62,8 +68,18 @@ export default function Dashboard() {
   const { data: actualsData } = useWeeklyActuals();
   const { data: arOverride } = useArWeeklyOverride();
   const { data: hireOverride } = useHirePayrollOverride();
+  const { data: signoffsList } = useWeekSignoffs();
+  const isApprover = useIsApprover();
+  const signOff = useSignOffWeek();
+  const unsign = useUnsignWeek();
   const updateActual = useUpdateWeeklyActual();
   const saveSnapshot = useSaveForecastSnapshot();
+
+  const signoffMap = useMemo(() => {
+    const m: Record<string, NonNullable<typeof signoffsList>[number]> = {};
+    for (const s of signoffsList ?? []) m[s.week_start_date] = s;
+    return m;
+  }, [signoffsList]);
 
   const loading = aLoading || arLoading || hLoading;
 
@@ -128,7 +144,7 @@ export default function Dashboard() {
   };
 
   const handleDownload = () => {
-    exportForecastToExcel(forecast, actualsData?.map ?? {});
+    void exportForecastToExcel(forecast, actualsData?.map ?? {});
   };
 
   return (
@@ -186,6 +202,10 @@ export default function Dashboard() {
         forecast={forecast}
         actuals={actualsData?.map ?? {}}
         onActualChange={(rowKey, value) => updateActual.mutate({ rowKey, value })}
+        signoffs={signoffMap}
+        isApprover={isApprover}
+        onSignOff={(iso) => signOff.mutate(iso)}
+        onUnsign={(iso) => unsign.mutate(iso)}
       />
     </div>
   );
