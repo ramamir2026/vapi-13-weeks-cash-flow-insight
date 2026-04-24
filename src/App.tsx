@@ -13,6 +13,7 @@ import ArSchedule from "./pages/ArSchedule";
 import FutureHires from "./pages/FutureHires";
 import AuditLog from "./pages/AuditLog";
 import AdminSettings from "./pages/AdminSettings";
+import BankImports from "./pages/BankImports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/ar-schedule" element={<Shell><ArSchedule /></Shell>} />
             <Route path="/future-hires" element={<Shell><FutureHires /></Shell>} />
             <Route path="/audit-log" element={<Shell><AuditLog /></Shell>} />
+            <Route path="/bank-imports" element={<Shell><BankImports /></Shell>} />
             <Route path="/admin-settings" element={<Shell><AdminSettings /></Shell>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
