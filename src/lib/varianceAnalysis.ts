@@ -95,6 +95,10 @@ export interface JoinedWeek {
   actualClosing: number;
   modeledBurn: number;
   actualBurn: number;
+  modeledInflows: number;
+  modeledOutflows: number;
+  actualInflows: number;
+  actualOutflows: number;
   modeledOpening: number;
   /** runway months estimate (using the week's burn extrapolated to monthly). */
   actualRunwayMonths: number | null;
