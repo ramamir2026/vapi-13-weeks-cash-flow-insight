@@ -61,8 +61,8 @@ export default function AuditLog() {
   const filters = useMemo(
     () => ({
       user: user !== "all" ? user : undefined,
-      table: table !== "all" ? [table] : undefined,
-      action: action !== "all" ? [action] : undefined,
+      table: action === "alert" ? ["model_alerts"] : table !== "all" ? [table] : undefined,
+      action: action === "alert" ? undefined : action !== "all" ? [action] : undefined,
       startDate: startDate || undefined,
       endDate: endDate ? `${endDate}T23:59:59` : undefined,
       page,
