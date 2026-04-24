@@ -243,6 +243,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <MondayChecklist />
       <BalanceVerificationBanner />
       <AlertsPanel />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -257,7 +258,12 @@ export default function Dashboard() {
             <Download className="h-4 w-4 mr-2" />
             Download Excel
           </Button>
-          <Button onClick={handleGenerate} disabled={saveSnapshot.isPending}>
+          <Button
+            ref={generateBtnRef}
+            onClick={handleGenerate}
+            disabled={saveSnapshot.isPending}
+            className="transition-shadow"
+          >
             <RefreshCw className={cn("h-4 w-4 mr-2", saveSnapshot.isPending && "animate-spin")} />
             Generate Forecast
           </Button>
@@ -300,11 +306,15 @@ export default function Dashboard() {
         onActualChange={(rowKey, value) => updateActual.mutate({ rowKey, value })}
         signoffs={signoffMap}
         isApprover={isApprover}
-        onSignOff={(iso) => signOff.mutate(iso)}
+        onSignOff={(iso) =>
+          signOff.mutate(iso, {
+            onSuccess: () => {
+              autoCheck.mutate({ itemKey: "signoff", email: user?.email ?? null });
+            },
+          })
+        }
         onUnsign={(iso) => unsign.mutate(iso)}
       />
-
-      <WeeklyChecklist />
     </div>
   );
 }
