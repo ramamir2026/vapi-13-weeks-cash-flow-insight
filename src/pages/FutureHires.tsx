@@ -180,6 +180,8 @@ const FutureHires = () => {
                     hire={h}
                     onSave={handleSaveRow}
                     onDelete={() => del.mutate(h.id)}
+                    isApprover={isApprover}
+                    onOverrideLock={() => overrideLock.mutate({ table: "future_hires", rowId: h.id })}
                   />
                 ))}
                 {showNew && (

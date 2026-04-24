@@ -144,7 +144,7 @@ export default function Dashboard() {
   };
 
   const handleDownload = () => {
-    exportForecastToExcel(forecast, actualsData?.map ?? {});
+    void exportForecastToExcel(forecast, actualsData?.map ?? {});
   };
 
   return (
