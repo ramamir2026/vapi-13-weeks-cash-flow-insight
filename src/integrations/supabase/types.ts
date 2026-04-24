@@ -359,6 +359,33 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_settings: {
+        Row: {
+          api_key_set: boolean
+          created_at: string
+          id: string
+          integration_name: string
+          is_connected: boolean
+          last_synced_at: string | null
+        }
+        Insert: {
+          api_key_set?: boolean
+          created_at?: string
+          id?: string
+          integration_name: string
+          is_connected?: boolean
+          last_synced_at?: string | null
+        }
+        Update: {
+          api_key_set?: boolean
+          created_at?: string
+          id?: string
+          integration_name?: string
+          is_connected?: boolean
+          last_synced_at?: string | null
+        }
+        Relationships: []
+      }
       model_alerts: {
         Row: {
           actual_amount: number
@@ -535,6 +562,39 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      sync_log: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          integration_name: string | null
+          rows_synced: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          integration_name?: string | null
+          rows_synced?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          integration_name?: string | null
+          rows_synced?: number
+          started_at?: string
+          status?: string
         }
         Relationships: []
       }
