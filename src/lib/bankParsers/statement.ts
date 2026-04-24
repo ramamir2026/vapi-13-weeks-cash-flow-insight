@@ -31,9 +31,7 @@ export const extractClosingBalanceFromCsv = (text: string): number | null => {
 
 // Extract text from a PDF using pdfjs-dist. Returns concatenated page text.
 export const extractTextFromPdf = async (file: File): Promise<string> => {
-  const pdfjs: typeof import("pdfjs-dist") = await import("pdfjs-dist");
-  // Disable worker fetch — bundle the worker URL instead.
-  // @ts-expect-error - worker URL import
+  const pdfjs = await import("pdfjs-dist");
   const worker = await import("pdfjs-dist/build/pdf.worker.mjs?url");
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
 
@@ -43,7 +41,10 @@ export const extractTextFromPdf = async (file: File): Promise<string> => {
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const tc = await page.getTextContent();
-    parts.push(tc.items.map((it: { str?: string }) => it.str ?? "").join(" "));
+    const text = tc.items
+      .map((it) => ("str" in it ? it.str : ""))
+      .join(" ");
+    parts.push(text);
   }
   return parts.join("\n");
 };
