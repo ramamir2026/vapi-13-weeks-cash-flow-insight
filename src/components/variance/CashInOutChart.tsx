@@ -133,6 +133,8 @@ export const CashInOutChart = ({ weeks }: Props) => {
     modeledInflow: w.modeledInflows,
     modeledOutflow: -w.modeledOutflows,
     net: w.actualInflows - w.actualOutflows,
+    actualBreakdown: w.actualBreakdown,
+    modeledBreakdown: w.modeledBreakdown,
   }));
 
   const last = weeks[weeks.length - 1];
