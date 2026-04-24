@@ -3,6 +3,7 @@
 import {
   autoCategorize,
   norm,
+  normalizeText,
   parseAmount,
   ParsedTxn,
   rid,
