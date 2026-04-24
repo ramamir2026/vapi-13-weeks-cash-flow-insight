@@ -14,6 +14,7 @@ import FutureHires from "./pages/FutureHires";
 import AuditLog from "./pages/AuditLog";
 import AdminSettings from "./pages/AdminSettings";
 import BankImports from "./pages/BankImports";
+import Transactions from "./pages/Transactions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/future-hires" element={<Shell><FutureHires /></Shell>} />
             <Route path="/audit-log" element={<Shell><AuditLog /></Shell>} />
             <Route path="/bank-imports" element={<Shell><BankImports /></Shell>} />
+            <Route path="/transactions" element={<Shell><Transactions /></Shell>} />
             <Route path="/admin-settings" element={<Shell><AdminSettings /></Shell>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

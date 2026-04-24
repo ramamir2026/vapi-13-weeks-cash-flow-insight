@@ -173,6 +173,114 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_category_rules: {
+        Row: {
+          bank_source: Database["public"]["Enums"]["bank_source"] | null
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          vendor_contains: string
+        }
+        Insert: {
+          bank_source?: Database["public"]["Enums"]["bank_source"] | null
+          category: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          vendor_contains: string
+        }
+        Update: {
+          bank_source?: Database["public"]["Enums"]["bank_source"] | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          vendor_contains?: string
+        }
+        Relationships: []
+      }
+      bank_statements: {
+        Row: {
+          bank_source: Database["public"]["Enums"]["bank_source"]
+          closing_balance: number
+          created_at: string
+          created_by: string | null
+          filename: string
+          id: string
+          parsed_text: string | null
+          statement_date: string
+        }
+        Insert: {
+          bank_source: Database["public"]["Enums"]["bank_source"]
+          closing_balance: number
+          created_at?: string
+          created_by?: string | null
+          filename: string
+          id?: string
+          parsed_text?: string | null
+          statement_date: string
+        }
+        Update: {
+          bank_source?: Database["public"]["Enums"]["bank_source"]
+          closing_balance?: number
+          created_at?: string
+          created_by?: string | null
+          filename?: string
+          id?: string
+          parsed_text?: string | null
+          statement_date?: string
+        }
+        Relationships: []
+      }
+      bank_transactions: {
+        Row: {
+          amount: number
+          balance: number | null
+          bank_source: Database["public"]["Enums"]["bank_source"]
+          category: string
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          import_filename: string | null
+          notes: string | null
+          source: string
+          updated_at: string
+          vendor: string
+        }
+        Insert: {
+          amount: number
+          balance?: number | null
+          bank_source: Database["public"]["Enums"]["bank_source"]
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          import_filename?: string | null
+          notes?: string | null
+          source?: string
+          updated_at?: string
+          vendor: string
+        }
+        Update: {
+          amount?: number
+          balance?: number | null
+          bank_source?: Database["public"]["Enums"]["bank_source"]
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          import_filename?: string | null
+          notes?: string | null
+          source?: string
+          updated_at?: string
+          vendor?: string
+        }
+        Relationships: []
+      }
       future_hires: {
         Row: {
           annual_salary: number
@@ -437,6 +545,39 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_checklist: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          completed_by_email: string | null
+          created_at: string
+          id: string
+          item_key: string
+          updated_at: string
+          week_start_date: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          completed_by_email?: string | null
+          created_at?: string
+          id?: string
+          item_key: string
+          updated_at?: string
+          week_start_date: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          completed_by_email?: string | null
+          created_at?: string
+          id?: string
+          item_key?: string
+          updated_at?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -485,6 +626,13 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user" | "viewer" | "editor" | "approver"
       ar_status: "pending" | "collected" | "overdue" | "written_off"
+      bank_source:
+        | "brex_primary"
+        | "brex_treasury"
+        | "brex_stripe_clearing"
+        | "svb_checking"
+        | "svb_money_market"
+        | "stripe"
       hire_status: "confirmed" | "offer_sent" | "interviewing"
     }
     CompositeTypes: {
@@ -615,6 +763,14 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user", "viewer", "editor", "approver"],
       ar_status: ["pending", "collected", "overdue", "written_off"],
+      bank_source: [
+        "brex_primary",
+        "brex_treasury",
+        "brex_stripe_clearing",
+        "svb_checking",
+        "svb_money_market",
+        "stripe",
+      ],
       hire_status: ["confirmed", "offer_sent", "interviewing"],
     },
   },
