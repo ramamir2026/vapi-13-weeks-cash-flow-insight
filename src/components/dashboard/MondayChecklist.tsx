@@ -22,7 +22,7 @@ type ChecklistItemDef = {
   label: string;
   to?: string;
   hint?: string;
-  auto?: "ar" | "hires" | "signoff";
+  auto?: "ar" | "hires" | "signoff" | "forecast";
   critical?: boolean;
 };
 
@@ -76,6 +76,7 @@ const BASE_ITEMS: ChecklistItemDef[] = [
     key: "generate_forecast",
     label: "Go to Dashboard → hit Generate Forecast",
     to: "/?focus=generate",
+    auto: "forecast",
   },
   { key: "review", label: "Review numbers — burn, headroom vs $15M floor, red/amber alerts" },
   { key: "signoff", label: "Sign off prior week", auto: "signoff" },
