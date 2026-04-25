@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_analyses: {
+        Row: {
+          analysis_text: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          is_fallback: boolean
+          source: string
+          week_start_date: string
+        }
+        Insert: {
+          analysis_text: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          is_fallback?: boolean
+          source?: string
+          week_start_date: string
+        }
+        Update: {
+          analysis_text?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          is_fallback?: boolean
+          source?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
       ar_entries: {
         Row: {
           created_at: string
