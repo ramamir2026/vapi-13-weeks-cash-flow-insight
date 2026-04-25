@@ -139,8 +139,15 @@ const AdminSettings = () => {
             Posts the cash flow summary to the Slack #cash-flow channel every Monday at
             7am ET via incoming webhook. Webhook URL is stored as the{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">SLACK_WEBHOOK_URL</code>{" "}
-            secret. To rotate it, go to api.slack.com/apps → your app → Incoming
-            Webhooks → copy a new URL and update the secret.
+            secret. If Slack delivery fails, falls back to email via Resend
+            (<code className="rounded bg-muted px-1 py-0.5 text-xs">RESEND_API_KEY</code>) — emails
+            send from noreply@vapi.ai (domain must be verified in Resend).
+            <br />
+            <br />
+            <strong>AI analysis:</strong> not configured — add{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">ANTHROPIC_API_KEY</code>{" "}
+            to Supabase secrets to enable Claude-generated CFO briefings. Until then a
+            placeholder appears in both the Slack report and the Variance & Insights page.
           </CardDescription>
         </CardHeader>
         <CardContent>
