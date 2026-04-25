@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentRole, type AppRole } from "@/hooks/useControls";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Send, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -131,6 +132,43 @@ const AdminSettings = () => {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Weekly report</CardTitle>
+          <CardDescription>
+            Posts the cash flow summary to the Slack #cash-flow channel every Monday at
+            7am ET via incoming webhook. Webhook URL is stored as the{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">SLACK_WEBHOOK_URL</code>{" "}
+            secret. To rotate it, go to api.slack.com/apps → your app → Incoming
+            Webhooks → copy a new URL and update the secret.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={async () => {
+              const t = toast.loading("Posting test report to Slack…");
+              const { data, error } = await supabase.functions.invoke(
+                "weekly-report",
+                { body: {} },
+              );
+              toast.dismiss(t);
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
+              if ((data as { error?: string })?.error) {
+                toast.error((data as { error: string }).error);
+                return;
+              }
+              toast.success("Test report posted to Slack");
+            }}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Send test report
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Add user access</CardTitle>

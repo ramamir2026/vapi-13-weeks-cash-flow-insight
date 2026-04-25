@@ -15,6 +15,7 @@ import AuditLog from "./pages/AuditLog";
 import AdminSettings from "./pages/AdminSettings";
 import BankImports from "./pages/BankImports";
 import Transactions from "./pages/Transactions";
+import Integrations from "./pages/Integrations";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/audit-log" element={<Shell><AuditLog /></Shell>} />
             <Route path="/bank-imports" element={<Shell><BankImports /></Shell>} />
             <Route path="/transactions" element={<Shell><Transactions /></Shell>} />
+            <Route path="/integrations" element={<Shell><Integrations /></Shell>} />
             <Route path="/admin-settings" element={<Shell><AdminSettings /></Shell>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

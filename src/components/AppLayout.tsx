@@ -11,6 +11,7 @@ import {
   Banknote,
   ListOrdered,
   TrendingUp,
+  Plug,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentRole } from "@/hooks/useControls";
@@ -27,6 +28,7 @@ const baseNavItems = [
   { to: "/variance", label: "Variance & Insights", icon: TrendingUp },
   { to: "/bank-imports", label: "Bank Imports", icon: Banknote },
   { to: "/transactions", label: "Transactions", icon: ListOrdered },
+  { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/audit-log", label: "Audit Log", icon: ScrollText },
 ];
 const adminNavItem = { to: "/admin-settings", label: "Admin Settings", icon: ShieldCheck };
