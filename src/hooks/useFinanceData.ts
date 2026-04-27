@@ -181,8 +181,6 @@ export type ArWeeklyOverride = {
   weeks: number[];
   created_at: string;
 };
-
-import { getCurrentMondayKey, getPriorMondayKey } from "@/lib/weekKey";
 const currentForecastStartISO = () => getCurrentMondayKey();
 
 export const useArWeeklyOverride = () =>
