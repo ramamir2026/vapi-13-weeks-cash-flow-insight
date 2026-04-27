@@ -123,7 +123,7 @@ export default function AuditLog() {
         </div>
         <Button variant="outline" onClick={handleExport}>
           <Download className="mr-2 h-4 w-4" />
-          Export
+          Export Audit Log
         </Button>
       </div>
 
