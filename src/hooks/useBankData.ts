@@ -273,16 +273,10 @@ export const useToggleChecklistItem = () => {
   });
 };
 
-// Compute the ISO date (YYYY-MM-DD) of the Monday of the current local week.
-const mondayOfThisWeek = (): string => {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = (day + 6) % 7; // 0 if Mon, 6 if Sun
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().slice(0, 10);
-};
+// Monday of the current local week (YYYY-MM-DD). Uses local-time parts to
+// avoid the UTC shift that would push US users back to Sunday.
+import { getCurrentMondayKey } from "@/lib/weekKey";
+const mondayOfThisWeek = (): string => getCurrentMondayKey();
 
 /**
  * Auto-check helper for app actions that should mark checklist items complete

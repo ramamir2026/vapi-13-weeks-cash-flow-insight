@@ -36,14 +36,8 @@ const probabilityForAging = (days: number): number => {
   return 0.2;
 };
 
-const currentMondayIso = (): string => {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = (day + 6) % 7;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - diff);
-  return monday.toISOString().slice(0, 10);
-};
+import { getCurrentMondayKey } from "@/lib/weekKey";
+const currentMondayIso = (): string => getCurrentMondayKey();
 
 const ArSchedule = () => {
   const { data: arEntries, isLoading } = useArEntries();
