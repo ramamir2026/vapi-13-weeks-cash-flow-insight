@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { BankSource, ParsedTxn } from "@/lib/bankParsers/types";
+import { getCurrentMondayKey } from "@/lib/weekKey";
 
 // ============ Bank transactions ============
 export type BankTransaction = {
@@ -273,16 +274,9 @@ export const useToggleChecklistItem = () => {
   });
 };
 
-// Compute the ISO date (YYYY-MM-DD) of the Monday of the current local week.
-const mondayOfThisWeek = (): string => {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = (day + 6) % 7; // 0 if Mon, 6 if Sun
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().slice(0, 10);
-};
+// Monday of the current local week (YYYY-MM-DD). Local-time only — UTC would
+// shift US users back to Sunday early Monday morning.
+const mondayOfThisWeek = (): string => getCurrentMondayKey();
 
 /**
  * Auto-check helper for app actions that should mark checklist items complete

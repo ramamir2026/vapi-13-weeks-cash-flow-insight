@@ -26,17 +26,11 @@ const CHECKLIST_ITEMS = [
   { key: "signoff", label: "Sign off prior week" },
 ];
 
-const mondayOf = (d: Date) => {
-  const x = new Date(d);
-  const day = x.getUTCDay();
-  const diff = (day + 6) % 7;
-  x.setUTCDate(x.getUTCDate() - diff);
-  return x.toISOString().slice(0, 10);
-};
+import { getCurrentMondayKey } from "@/lib/weekKey";
 
 export const WeeklyChecklist = () => {
   const { user } = useAuth();
-  const week = useMemo(() => mondayOf(new Date()), []);
+  const week = useMemo(() => getCurrentMondayKey(), []);
   const { data: items = [] } = useWeeklyChecklist(week);
   const toggle = useToggleChecklistItem();
 

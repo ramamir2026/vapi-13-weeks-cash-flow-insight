@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getCurrentMondayKey, getPriorMondayKey } from "@/lib/weekKey";
 
 // ============ Assumptions ============
 export type Assumption = {
@@ -180,15 +181,7 @@ export type ArWeeklyOverride = {
   weeks: number[];
   created_at: string;
 };
-
-const currentForecastStartISO = () => {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = (day + 6) % 7;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - diff);
-  return monday.toISOString().slice(0, 10);
-};
+const currentForecastStartISO = () => getCurrentMondayKey();
 
 export const useArWeeklyOverride = () =>
   useQuery({
@@ -354,14 +347,7 @@ export const useLatestForecastAt = () =>
 
 // ============ Weekly actuals (prior-week column on dashboard) ============
 // We store the per-row actuals as JSON in weekly_actuals.notes for the prior week.
-const priorWeekStartISO = () => {
-  const d = new Date();
-  const day = d.getDay(); // 0 Sun .. 6 Sat
-  const diff = (day + 6) % 7; // days since Monday
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - diff - 7); // prior week's Monday
-  return monday.toISOString().slice(0, 10);
-};
+const priorWeekStartISO = () => getPriorMondayKey();
 
 export const useWeeklyActuals = () =>
   useQuery({

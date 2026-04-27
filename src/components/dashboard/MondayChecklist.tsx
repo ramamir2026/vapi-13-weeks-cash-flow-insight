@@ -89,21 +89,14 @@ const CRITICAL_ITEM: ChecklistItemDef = {
   critical: true,
 };
 
-const mondayOf = (d: Date): string => {
-  const x = new Date(d);
-  const day = x.getDay();
-  const diff = (day + 6) % 7;
-  x.setDate(x.getDate() - diff);
-  x.setHours(0, 0, 0, 0);
-  return x.toISOString().slice(0, 10);
-};
+import { getCurrentMondayKey } from "@/lib/weekKey";
 
 const STALE_MS = 6 * 24 * 60 * 60 * 1000;
 const COMPLETED_LS_KEY = "checklist_completed_week";
 
 export const MondayChecklist = () => {
   const { user } = useAuth();
-  const week = useMemo(() => mondayOf(new Date()), []);
+  const week = useMemo(() => getCurrentMondayKey(), []);
   const { data: items = [] } = useWeeklyChecklist(week);
   const { data: lastForecastAt } = useLatestForecastAt();
   const { data: openAlerts = [] } = useOpenAlerts();
