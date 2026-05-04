@@ -90,6 +90,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const generateBtnRef = useRef<HTMLButtonElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Briefly highlight the Generate Forecast button when arriving with ?focus=generate.
   useEffect(() => {
