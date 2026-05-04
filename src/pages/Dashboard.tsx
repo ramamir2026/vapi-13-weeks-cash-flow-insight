@@ -238,7 +238,26 @@ export default function Dashboard() {
   };
 
   const handleDownload = () => {
-    void exportForecastToExcel(forecast, actualsData?.map ?? {});
+    void exportForecastToExcel(forecast, actualsData?.map ?? {}, {
+      assumptions: assumptions?.map((a) => ({
+        category: a.category,
+        key: a.label || a.key,
+        value: a.unit === "percent" ? `${a.value}%` : a.value,
+      })),
+      arEntries: arEntries?.map((r) => ({
+        customer: r.customer_name,
+        invoice_amount: r.invoice_amount,
+        due_date: r.invoice_date,
+        expected_collection_date: r.expected_collection_date,
+        status: r.status,
+      })),
+      futureHires: hires?.map((h) => ({
+        role: h.role,
+        department: h.department ?? undefined,
+        start_date: h.start_date,
+        annual_salary: h.annual_salary,
+      })),
+    });
   };
 
   return (

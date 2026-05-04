@@ -79,7 +79,24 @@ const fillSolid = (argb: string) => ({
 
 export const exportForecastToExcel = async (
   forecast: ForecastResult,
-  actuals: Record<string, number> = {}
+  actuals: Record<string, number> = {},
+  extras?: {
+    assumptions?: Array<{ key: string; value: string | number; category: string }>;
+    arEntries?: Array<{
+      customer: string;
+      invoice_amount: number;
+      due_date?: string;
+      expected_collection_date?: string;
+      status?: string;
+      probability?: number;
+    }>;
+    futureHires?: Array<{
+      role: string;
+      department?: string;
+      start_date?: string;
+      annual_salary?: number;
+    }>;
+  }
 ) => {
   const { weeks, cogsRows, opexRows, rentRow, minCashThreshold } = forecast;
 
@@ -515,6 +532,93 @@ export const exportForecastToExcel = async (
     row.getCell("actual").numFmt = MONEY_FMT;
     row.getCell("dollar").numFmt = MONEY_FMT;
     row.getCell("pct").numFmt = "0.0";
+  }
+
+  // ===================== Assumptions sheet =====================
+  if (extras?.assumptions && extras.assumptions.length > 0) {
+    const aSheet = wb.addWorksheet("Assumptions", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    aSheet.columns = [
+      { header: "Category", key: "category", width: 20 },
+      { header: "Key", key: "key", width: 35 },
+      { header: "Value", key: "value", width: 18 },
+    ];
+    aSheet.getRow(1).font = { bold: true };
+    const sortedA = [...extras.assumptions].sort((a, b) => {
+      const c = (a.category ?? "").localeCompare(b.category ?? "");
+      return c !== 0 ? c : a.key.localeCompare(b.key);
+    });
+    for (const r of sortedA) {
+      aSheet.addRow({ category: r.category, key: r.key, value: r.value });
+    }
+  }
+
+  // ===================== AR Schedule sheet =====================
+  if (extras?.arEntries && extras.arEntries.length > 0) {
+    const arSheet = wb.addWorksheet("AR Schedule", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    arSheet.columns = [
+      { header: "Customer", key: "customer", width: 30 },
+      { header: "Invoice Amount", key: "invoice_amount", width: 16 },
+      { header: "Due Date", key: "due_date", width: 14 },
+      { header: "Expected Collection", key: "expected_collection_date", width: 20 },
+      { header: "Status", key: "status", width: 14 },
+      { header: "Probability", key: "probability", width: 12 },
+    ];
+    arSheet.getRow(1).font = { bold: true };
+    const sortedAr = [...extras.arEntries].sort((a, b) =>
+      (a.expected_collection_date ?? "").localeCompare(b.expected_collection_date ?? "")
+    );
+    for (const r of sortedAr) {
+      const prob =
+        r.probability == null
+          ? null
+          : r.probability > 1
+          ? r.probability / 100
+          : r.probability;
+      const row = arSheet.addRow({
+        customer: r.customer,
+        invoice_amount: Number(r.invoice_amount) || 0,
+        due_date: r.due_date ?? "",
+        expected_collection_date: r.expected_collection_date ?? "",
+        status: r.status ?? "",
+        probability: prob,
+      });
+      row.getCell("invoice_amount").numFmt = "$#,##0";
+      row.getCell("probability").numFmt = "0%";
+    }
+  }
+
+  // ===================== Future Hires sheet =====================
+  if (extras?.futureHires && extras.futureHires.length > 0) {
+    const hSheet = wb.addWorksheet("Future Hires", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    hSheet.columns = [
+      { header: "Role", key: "role", width: 30 },
+      { header: "Department", key: "department", width: 20 },
+      { header: "Start Date", key: "start_date", width: 14 },
+      { header: "Annual Salary", key: "annual_salary", width: 16 },
+      { header: "Monthly Cost", key: "monthly_cost", width: 16 },
+    ];
+    hSheet.getRow(1).font = { bold: true };
+    const sortedH = [...extras.futureHires].sort((a, b) =>
+      (a.start_date ?? "").localeCompare(b.start_date ?? "")
+    );
+    for (const r of sortedH) {
+      const annual = Number(r.annual_salary) || 0;
+      const row = hSheet.addRow({
+        role: r.role,
+        department: r.department ?? "",
+        start_date: r.start_date ?? "",
+        annual_salary: annual,
+        monthly_cost: annual / 12,
+      });
+      row.getCell("annual_salary").numFmt = "$#,##0";
+      row.getCell("monthly_cost").numFmt = "$#,##0";
+    }
   }
 
   // ===================== Save =====================
