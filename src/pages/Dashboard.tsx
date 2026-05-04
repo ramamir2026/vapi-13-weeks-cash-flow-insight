@@ -238,7 +238,11 @@ export default function Dashboard() {
   };
 
   const handleDownload = () => {
-    void exportForecastToExcel(forecast, actualsData?.map ?? {});
+    void exportForecastToExcel(forecast, actualsData?.map ?? {}, {
+      assumptions,
+      arEntries,
+      futureHires: hires,
+    });
   };
 
   return (
