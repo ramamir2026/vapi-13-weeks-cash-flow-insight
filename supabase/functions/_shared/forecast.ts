@@ -75,13 +75,13 @@ export const buildAssumptionMap = (
 };
 
 const COGS_VENDOR_WEEKS: Record<string, number[]> = {
-  cogs_anthropic: [2, 7, 11],
-  cogs_azure: [3, 8, 12],
-  cogs_openai: [2, 7, 11],
-  cogs_elevenlabs: [3, 8, 12],
-  cogs_deepgram: [2],
-  cogs_pump_aws: [4, 9, 13],
-  cogs_twilio: [3, 8, 12],
+  cogs_anthropic:  [5, 9],
+  cogs_azure:      [1, 5, 10],
+  cogs_openai:     [1, 5, 9],
+  cogs_elevenlabs: [1, 6, 10],
+  cogs_deepgram:   [],
+  cogs_pump_aws:   [3, 7, 11],
+  cogs_twilio:     [4, 8, 12],
 };
 
 const COGS_LABELS: Record<string, string> = {
@@ -115,7 +115,7 @@ const OPEX_LABELS: Record<string, string> = {
   opex_ga: "G&A",
 };
 
-const PAYROLL_WEEKS = new Set([2, 4, 6, 8, 10, 12]);
+const PAYROLL_WEEKS = new Set([2, 4, 6, 8, 11, 13]);
 const COGS_GROWTH_KEYS = new Set(["cogs_anthropic", "cogs_azure"]);
 const COGS_MONTHLY_GROWTH = 0.07;
 const WEEKS_PER_MONTH = 4.333;
@@ -166,9 +166,8 @@ export const buildForecast = (
   const rentOctPlus = assumptions["rent_oct_plus"] ?? 0;
 
   const brexByWeek: Record<number, number> = {
-    2: assumptions["brex_w2"] ?? 0,
-    7: assumptions["brex_w7"] ?? 0,
-    11: assumptions["brex_w11"] ?? 0,
+    5: assumptions["brex_w2"] ?? 0,
+    9: assumptions["brex_w7"] ?? 0,
   };
 
   const weekStartDates: Date[] = [];
@@ -212,7 +211,7 @@ export const buildForecast = (
   });
 
   const rentRow = new Array(weeksCount).fill(0);
-  const rentPaymentIndices = [1, 6, 10];
+  const rentPaymentIndices = [4, 8];
   for (const idx of rentPaymentIndices) {
     if (idx >= weeksCount) continue;
     const m = weekStartDates[idx].getMonth();
