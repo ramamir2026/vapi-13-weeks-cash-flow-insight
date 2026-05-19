@@ -106,11 +106,14 @@ export const detectAndParse = (
   const hasDescription = hasAny(cols, TOKENS.description);
   const hasAmount = hasAny(cols, TOKENS.amount);
 
-  // Pick source from header signals; filename only breaks ties or refines Brex flavour.
+  // Pick source from header signals; filename only breaks ties or refines flavour.
   let source: BankSource;
   let confidence: "high" | "medium" | "low" = "high";
 
-  if (hasBrex) {
+  // Ramp filename hint takes priority — Ramp CSVs share Brex-like columns.
+  if (hint === "ramp_checking" || hint === "ramp_treasury") {
+    source = hint;
+  } else if (hasBrex) {
     source =
       hint === "brex_treasury" || hint === "brex_stripe_clearing"
         ? hint
@@ -148,10 +151,11 @@ export const detectAndParse = (
     };
   }
 
-  // Filename disagreement → confidence drop + warning (Brex flavour is allowed to differ from primary).
+  // Filename disagreement → confidence drop + warning (same-family flavours allowed).
   if (hint && hint !== source) {
     const sameBrexFamily = hint.startsWith("brex_") && source.startsWith("brex_");
-    if (!sameBrexFamily) {
+    const sameRampFamily = hint.startsWith("ramp_") && source.startsWith("ramp_");
+    if (!sameBrexFamily && !sameRampFamily) {
       confidence = "medium";
       warnings.push(
         `Filename suggests ${hint} but headers look like ${source}. Confirm bank source before importing.`
@@ -165,6 +169,9 @@ export const detectAndParse = (
     case "brex_primary":
     case "brex_treasury":
     case "brex_stripe_clearing":
+    case "ramp_checking":
+    case "ramp_treasury":
+      // Ramp exports share Brex-style columns (Date, Merchant/Description, Amount, Balance).
       rows = parseBrexCsv(text, source);
       break;
     case "svb_money_market":
