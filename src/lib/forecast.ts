@@ -151,6 +151,8 @@ export const buildForecast = (
     "cash_brex_primary",
     "cash_svb_checking",
     "cash_stripe_clearing",
+    "cash_ramp_checking",
+    "cash_ramp_treasury",
   ];
   const cashSum = cashKeys.reduce((s, k) => s + (assumptions[k] ?? 0), 0);
   const opening = cashSum > 0 ? cashSum : assumptions["opening_cash_balance"] ?? 0;

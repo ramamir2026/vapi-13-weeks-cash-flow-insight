@@ -202,6 +202,8 @@ export default function Dashboard() {
       "cash_brex_primary",
       "cash_svb_checking",
       "cash_stripe_clearing",
+      "cash_ramp_checking",
+      "cash_ramp_treasury",
     ];
     const modeledOpening = cashKeys.reduce((s, k) => s + (assumptionMap[k] ?? 0), 0);
     const latestPerSource = new Map<string, number>();

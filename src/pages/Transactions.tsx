@@ -50,6 +50,8 @@ const BANK_OPTIONS: BankSource[] = [
   "svb_checking",
   "svb_money_market",
   "stripe",
+  "ramp_checking",
+  "ramp_treasury",
 ];
 
 const Transactions = () => {

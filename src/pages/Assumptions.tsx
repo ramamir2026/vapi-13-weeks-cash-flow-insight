@@ -36,6 +36,8 @@ const SECTIONS: SectionDef[] = [
       { key: "cash_brex_primary" },
       { key: "cash_svb_checking" },
       { key: "cash_stripe_clearing" },
+      { key: "cash_ramp_checking" },
+      { key: "cash_ramp_treasury" },
     ],
   },
   {
