@@ -90,6 +90,11 @@ export default function Dashboard() {
   const saveVarianceSnapshots = useSaveVarianceSnapshots();
   const autoCheck = useAutoCheckChecklistItem();
   const { user } = useAuth();
+  const { data: accounts } = useAccounts();
+  const activeCashKeys = useMemo(
+    () => (accounts ? activeSpendableCashKeys(accounts) : []),
+    [accounts],
+  );
   const [searchParams] = useSearchParams();
   const generateBtnRef = useRef<HTMLButtonElement>(null);
   const [importOpen, setImportOpen] = useState(false);
