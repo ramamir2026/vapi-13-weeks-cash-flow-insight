@@ -600,6 +600,13 @@ const StatementUploadsTab = () => {
   const [busy, setBusy] = useState<BankSource | null>(null);
   const [pendingSource, setPendingSource] = useState<BankSource>("brex_primary");
 
+  // Local edit buffers for the Ramp manual-balance card. Ramp feeds carry no
+  // running balance, so the opening balance must be typed from the statement
+  // or portal — saved as a bank_statement row to drive the verification UI.
+  const [manualEdits, setManualEdits] = useState<
+    Record<string, { value: string; asOf: string }>
+  >({});
+
   // Latest statement per bank source.
   const latestByBank = useMemo(() => {
     const m: Record<string, typeof statements[number]> = {};
