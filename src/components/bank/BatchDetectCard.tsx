@@ -352,6 +352,24 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
                         <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                           {f.rows.length}
                         </TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">
+                          {f.derivedBalance != null && f.balanceAsOf ? (
+                            <div className="flex flex-col items-end">
+                              <span className="font-medium text-foreground">
+                                {f.derivedBalance.toLocaleString("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                  maximumFractionDigits: 0,
+                                })}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                as of {f.balanceAsOf}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Checkbox
                             checked={f.confirmed}
