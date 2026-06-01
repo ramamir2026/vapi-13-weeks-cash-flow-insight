@@ -48,18 +48,8 @@ export const CONFIDENCE_SCORE: Record<"high" | "medium" | "low", number> = {
 
 const AUTO_ACCEPT_THRESHOLD = 0.8;
 
-// Required for a full snapshot of spendable cash. Collateral is intentionally
-// NOT required — it's restricted and excluded from spendable cash.
-const REQUIRED_SOURCES: BankSource[] = [
-  "brex_primary",
-  "brex_treasury",
-  "brex_stripe_clearing",
-  "svb_checking",
-  "svb_money_market",
-  "ramp_checking",
-  "ramp_treasury",
-];
-
+// Required/restricted sets are now derived from the accounts registry at
+// render time (see component body), not hardcoded.
 const ALL_SOURCES: BankSource[] = [
   "brex_primary",
   "brex_treasury",
@@ -72,12 +62,6 @@ const ALL_SOURCES: BankSource[] = [
   "ramp_checking",
   "ramp_treasury",
 ];
-
-// Accounts whose balance is restricted (held as collateral) and therefore
-// excluded from the spendable opening-cash sum in the forecast.
-export const RESTRICTED_SOURCES: ReadonlySet<BankSource> = new Set<BankSource>([
-  "svb_collateral",
-]);
 
 const FILE_TYPE_LABEL: Record<BankSource, string> = {
   brex_primary: "Brex CSV",
