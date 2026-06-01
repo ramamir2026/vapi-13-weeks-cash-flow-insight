@@ -203,19 +203,17 @@ const valueByToken = (
 
 const onlyDigits = (s: string) => s.replace(/\D/g, "");
 
-// -------------------- account → source maps --------------------
-const BREX_LAST4: Record<string, BankSource> = {
-  "8083": "brex_primary",
-  "2515": "brex_treasury",
-  "9173": "brex_stripe_clearing",
-};
-
-const resolveSvbBai = (accountNumber: string): BankSource | null => {
+const resolveSvbBai = (
+  accountNumber: string,
+  list: Array<{ suffix: string; source: BankSource }>,
+): BankSource | null => {
   const d = onlyDigits(accountNumber);
   if (!d) return null;
-  if (d.endsWith("4687")) return "svb_checking";
-  if (d.endsWith("0999")) return "svb_collateral";
-  return null;
+  // Prefer the longest matching suffix so e.g. "00004687" beats a shorter "87".
+  const matches = list.filter((e) => d.endsWith(e.suffix));
+  if (!matches.length) return null;
+  matches.sort((a, b) => b.suffix.length - a.suffix.length);
+  return matches[0].source;
 };
 
 // -------------------- main entry --------------------
