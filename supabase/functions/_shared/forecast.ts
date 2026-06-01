@@ -268,7 +268,12 @@ export const buildForecast = (
     const opexTotal = opexRows.reduce((s, r) => s + r.weeks[i], 0);
     const rent = rentRow[i];
 
-    const totalInflows = stripeRevenue + enterpriseRevenue + arCollections;
+    // Cash inflows = Stripe run-rate + Enterprise ACH run-rate ONLY.
+    // Enterprise collections are already counted once here via enterprise_ach_weekly,
+    // so we deliberately do NOT add arCollections to the cash total — doing so would
+    // double-count the same dollars. The AR schedule is a risk register / timing view
+    // (which invoices are expected when), not an independent cash source.
+    const totalInflows = stripeRevenue + enterpriseRevenue;
     const totalOutflows = payroll + cogsTotal + brexCard + opexTotal + rent;
     const netChange = totalInflows - totalOutflows;
     const openingBalance = running;
