@@ -63,6 +63,8 @@ export interface ForecastResult {
   endingBalance: number;
   cashOutDate: string | null;
   minCashThreshold: number;
+  actualMonthlyBurn: number | null;
+  actualRunwayMonths: number | null;
 }
 
 export const buildAssumptionMap = (
@@ -345,7 +347,24 @@ export const buildForecast = (
   const burns = weeks.map((w) => Math.max(0, -w.netChange));
   const averageWeeklyBurn = burns.reduce((a, b) => a + b, 0) / Math.max(1, weeks.length);
   const endingBalance = weeks[weeks.length - 1]?.closingBalance ?? opening;
-  const lastWeek = weeks[weeks.length - 1];
+
+  // Whole-window headline burn: net cash consumed across the full forecast horizon,
+  // annualized to a monthly rate. This is the model's view of burn (vs. the per-week
+  // trailing burn used for chart shading).
+  const windowMonths = weeksCount / WEEKS_PER_MONTH;
+  const monthlyBurn = windowMonths > 0 ? -(endingBalance - opening) / windowMonths : 0;
+  const runwayMonths = monthlyBurn > 0 ? opening / monthlyBurn : null;
+  const cashOutDate =
+    monthlyBurn > 0 && runwayMonths != null
+      ? format(addMonths(new Date(), runwayMonths), "MMM yyyy")
+      : null;
+
+  // Bank-measured actual burn, surfaced from assumptions so the UI can show it
+  // alongside the model burn (e.g. ~$2.0M/mo from real bank outflows).
+  const actualTrailingBurn = assumptions["actual_trailing_burn"] ?? 0;
+  const actualMonthlyBurn = actualTrailingBurn > 0 ? actualTrailingBurn : null;
+  const actualRunwayMonths =
+    actualMonthlyBurn != null && actualMonthlyBurn > 0 ? opening / actualMonthlyBurn : null;
 
   return {
     weeks,
@@ -353,10 +372,12 @@ export const buildForecast = (
     opexRows,
     rentRow,
     averageWeeklyBurn,
-    monthlyBurn: lastWeek?.trailingMonthlyBurn ?? null,
-    runwayMonths: lastWeek?.runwayMonths ?? null,
+    monthlyBurn: monthlyBurn > 0 ? monthlyBurn : null,
+    runwayMonths,
     endingBalance,
-    cashOutDate: lastWeek?.cashOutDate ?? null,
+    cashOutDate,
     minCashThreshold,
+    actualMonthlyBurn,
+    actualRunwayMonths,
   };
 };
