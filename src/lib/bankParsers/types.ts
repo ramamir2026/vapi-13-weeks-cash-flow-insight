@@ -60,6 +60,11 @@ export type DetectionResult = {
   confidence: "high" | "medium" | "low";
   rows: ParsedTxn[];
   warnings: string[];
+  // Opening balance derived from the parsed rows: the running balance from the
+  // row with the latest date ≤ the report's cutoff (prior Friday). Null when
+  // no in-range row carries a balance.
+  derivedBalance: number | null;
+  balanceAsOf: string | null;
 };
 
 // Strip UTF-8 BOM and normalize CRLF → LF. Always run on raw file text first.
