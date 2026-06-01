@@ -272,6 +272,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
                     <TableHead>Mapped account</TableHead>
                     <TableHead className="w-32">Confidence</TableHead>
                     <TableHead className="w-24 text-right">Rows</TableHead>
+                    <TableHead className="w-44 text-right">Balance (as of)</TableHead>
                     <TableHead className="w-20 text-center">Confirm</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
