@@ -109,6 +109,28 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
   const [files, setFiles] = useState<StagedFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [importing, setImporting] = useState(false);
+  const { data: accounts } = useAccounts();
+
+  // Required & restricted sources derived live from the accounts registry —
+  // adding/removing an account row in the DB is the only thing needed to change
+  // these. No code changes required.
+  const requiredSources = useMemo<BankSource[]>(() => {
+    if (!accounts?.length) return [];
+    return accounts
+      .filter((a) => a.is_active && !a.is_restricted)
+      .map((a) => ASSUMPTION_KEY_TO_BANK_SOURCE[a.assumption_key])
+      .filter((s): s is BankSource => Boolean(s));
+  }, [accounts]);
+  const restrictedSources = useMemo<ReadonlySet<BankSource>>(() => {
+    const set = new Set<BankSource>();
+    for (const a of accounts ?? []) {
+      if (a.is_active && a.is_restricted) {
+        const src = ASSUMPTION_KEY_TO_BANK_SOURCE[a.assumption_key];
+        if (src) set.add(src);
+      }
+    }
+    return set;
+  }, [accounts]);
 
   const handleFiles = useCallback(async (list: FileList | File[]) => {
     const arr = Array.from(list);
