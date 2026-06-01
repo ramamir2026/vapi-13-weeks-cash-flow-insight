@@ -137,9 +137,10 @@ export default function Dashboard() {
       13,
       undefined,
       arOverride ? { weeks: arOverride.weeks, delay_days: arOverride.delay_days } : null,
-      hireOverride ? { weeks: hireOverride.weeks } : null
+      hireOverride ? { weeks: hireOverride.weeks } : null,
+      activeCashKeys,
     );
-  }, [assumptions, arEntries, hires, arOverride, hireOverride]);
+  }, [assumptions, arEntries, hires, arOverride, hireOverride, activeCashKeys]);
 
   if (loading || !forecast) {
     return (
