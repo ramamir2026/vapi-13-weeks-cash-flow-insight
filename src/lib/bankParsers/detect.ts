@@ -221,12 +221,18 @@ const resolveSvbBai = (accountNumber: string): BankSource | null => {
 // -------------------- main entry --------------------
 export const detectAndParse = (
   rawText: string,
-  filename: string
+  filename: string,
+  accounts?: AccountRow[],
 ): DetectionResult => {
   const text = normalizeText(rawText);
   const hint = filenameHint(filename);
   const warnings: string[] = [];
   const header = findHeader(text);
+  const registry = buildRegistryMaps(accounts);
+  // Fall back to legacy hardcoded mappings only when registry is empty
+  // (keeps unit tests and pre-registry callers working).
+  const brexMap = Object.keys(registry.brex).length ? registry.brex : LEGACY_BREX_LAST4;
+  const svbList = registry.svb.length ? registry.svb : LEGACY_SVB;
 
   if (!header) {
     return {
