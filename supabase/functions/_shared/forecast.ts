@@ -141,20 +141,14 @@ export const buildForecast = (
   startDate?: Date,
   arOverride?: ArOverride | null,
   hireOverride?: HireOverride | null,
+  // Assumption keys for active, non-restricted accounts (from accounts table).
+  activeCashKeys?: string[],
 ): ForecastResult => {
   const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
 
-  const cashKeys = [
-    "cash_svb_mm",
-    "cash_brex_treasury",
-    "cash_brex_primary",
-    "cash_svb_checking",
-    "cash_stripe_clearing",
-    "cash_ramp_checking",
-    "cash_ramp_treasury",
-  ];
-  const cashSum = cashKeys.reduce((s, k) => s + (assumptions[k] ?? 0), 0);
-  const opening = cashSum > 0 ? cashSum : assumptions["opening_cash_balance"] ?? 0;
+  const keys = activeCashKeys ?? [];
+  const cashSum = keys.reduce((s, k) => s + (assumptions[k] ?? 0), 0);
+  const opening = keys.length > 0 ? cashSum : assumptions["opening_cash_balance"] ?? 0;
   const minCashThreshold = assumptions["min_cash_threshold"] ?? 15_000_000;
 
   const stripeDaily = assumptions["stripe_daily_rate"] ?? 0;
