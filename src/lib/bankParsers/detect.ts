@@ -25,6 +25,7 @@ import { deriveOpeningBalance } from "./deriveBalance";
 import {
   BankSource,
   DetectionResult,
+  MANUAL_BALANCE_SOURCES,
   norm,
   normalizeText,
   splitCsvLine,
@@ -346,9 +347,15 @@ export const detectAndParse = (
 
   const derived = deriveOpeningBalance(rows!);
   if (rows!.length && !derived) {
-    warnings.push(
-      "No row carries a running balance on or before the prior Friday — opening balance cannot be derived from this file."
-    );
+    if (MANUAL_BALANCE_SOURCES.has(source!)) {
+      warnings.push(
+        `${source} CSV has no balance column — enter the account's opening balance manually (or upload a Ramp statement PDF in the Statements tab).`
+      );
+    } else {
+      warnings.push(
+        "No row carries a running balance on or before the prior Friday — opening balance cannot be derived from this file."
+      );
+    }
   }
 
   return {

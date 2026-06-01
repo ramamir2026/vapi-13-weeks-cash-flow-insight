@@ -44,6 +44,14 @@ export const BANK_TO_ASSUMPTION_KEY: Record<Exclude<BankSource, "brex_card">, st
   ramp_treasury: "cash_ramp_treasury",
 };
 
+// Bank sources whose CSV/transaction feed does NOT carry a running balance,
+// so the opening balance must be entered manually (or pulled from a Ramp
+// statement PDF uploaded via the Statements tab).
+export const MANUAL_BALANCE_SOURCES: ReadonlySet<BankSource> = new Set<BankSource>([
+  "ramp_checking",
+  "ramp_treasury",
+]);
+
 export type ParsedTxn = {
   // Local-only id for table state.
   id: string;
