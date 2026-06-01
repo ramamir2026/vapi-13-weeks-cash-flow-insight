@@ -175,7 +175,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         `Staged ${staged.length} file${staged.length === 1 ? "" : "s"}. ${auto} auto-accepted (≥ 0.8 confidence).`
       );
     }
-  }, []);
+  }, [accounts]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
