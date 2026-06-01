@@ -200,7 +200,7 @@ export const autoCategorize = (vendor: string, _source: BankSource): string => {
   if (v.includes('sweep') || v.includes('transfer to') || v.includes('transfer from') || v.includes('brex treasury')) return 'zba_sweep';
   if (v.includes('sequoia one')) return 'payroll';
   if (v.includes('stripe payout') || v.includes('stripe transfer')) return 'stripe_revenue';
-  if (v.includes('anthropic') || v.includes('openai') || v.includes('azure') || v.includes('deepgram') || v.includes('elevenlabs') || v.includes('twilio') || v.includes('pump')) return 'cogs';
+  if (v.includes('anthropic') || v.includes('openai') || v.includes('azure') || v.includes('deepgram') || v.includes('elevenlabs') || v.includes('twilio') || v.includes('pump') || v.includes('google') || v.includes('gemini') || v.includes('neon') || v.includes('chronosphere') || v.includes('nango')) return 'cogs';
   if (v.includes('brex inc')) return 'card_payments';
   if (v.includes('montgomery') || v.includes('supervisor') || v.includes('creators corner') || v.includes('pianta') || v.includes('martin sign')) return 'sm';
   if (v.includes('prizm') || v.includes('execcatalyst') || v.includes('candidate labs') || v.includes('launch search')) return 'recruiting';
