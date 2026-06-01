@@ -29,9 +29,12 @@ import { detectAndParse } from "@/lib/bankParsers/detect";
 import {
   BANK_LABEL,
   BANK_TO_ASSUMPTION_KEY,
+  MANUAL_BALANCE_SOURCES,
   type BankSource,
   type ParsedTxn,
 } from "@/lib/bankParsers/types";
+import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 // Confidence string → numeric score. ≥ 0.8 auto-accepts.
