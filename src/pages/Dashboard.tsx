@@ -34,6 +34,8 @@ import { useCreateAlerts, useSaveVarianceSnapshots } from "@/hooks/useAlerts";
 import { detectAlerts, type VarianceTxn } from "@/lib/variance";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useAccounts } from "@/hooks/useAccounts";
+import { activeSpendableCashKeys } from "@/lib/accounts";
 
 const Kpi = ({
   label,
