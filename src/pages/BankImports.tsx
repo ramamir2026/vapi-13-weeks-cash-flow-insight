@@ -184,6 +184,7 @@ const TransactionImportTab = () => {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const importMut = useImportBankTransactions();
+  const uploadStatementMut = useUploadStatement();
   const upsertRule = useUpsertCategoryRule();
   const { data: rules = [] } = useBankCategoryRules();
   const { data: assumptionsList = [] } = useAssumptions();
