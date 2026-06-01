@@ -1,7 +1,22 @@
-// Bank source auto-detector. Scores header rows by recognized tokens so it
-// works on real-world exports where exact column names vary, then dispatches
-// to the matching parser. Always returns the parser's result (even 0 rows)
-// so the UI can show the user *why* nothing parsed instead of failing silently.
+// Bank source auto-detector. Identifies files by CONTENT (header signature +
+// first data-row account value), not filename. Filename is consulted only as a
+// last-resort tiebreaker when the content provides no signal.
+//
+// Signature → source rules:
+//   • Brex CSV:    header has "To/From" + "Account Number Last Four".
+//                  First data row's last-four → 8083 brex_primary,
+//                  2515 brex_treasury, 9173 brex_stripe_clearing.
+//   • SVB BAI:     header has "Bank ID","Account Number","Account Title","BAI Type Code".
+//                  First data row's account number → ends 4687 svb_checking,
+//                  ends 0999 svb_collateral.
+//   • SVB sweep:   header has "Sweep Account" + "Sweep Product" → svb_money_market.
+//   • Ramp:        header has "Signed Transaction Amount" +
+//                  "Detailed Transaction Type" → ramp_checking.
+//
+// Confidence:
+//   • "high"  — header signature matched AND account value resolved.
+//   • "medium"— header signature matched, account value ambiguous (used filename).
+//   • "low"   — no content signal at all (filename-only or nothing).
 import { parseBrexCsv } from "./brex";
 import { parseStripeCsv } from "./stripe";
 import { parseSvbCheckingCsv } from "./svbChecking";
@@ -14,10 +29,12 @@ import {
   splitCsvLine,
 } from "./types";
 
+// -------------------- filename fallback (last resort) --------------------
 const filenameHint = (filename: string): BankSource | null => {
   const f = filename.toLowerCase();
   if (f.includes("ramp") && f.includes("treasury")) return "ramp_treasury";
   if (f.includes("ramp")) return "ramp_checking";
+  if (f.includes("collateral")) return "svb_collateral";
   if (f.includes("treasury")) return "brex_treasury";
   if (
     f.includes("stripe_clearing") ||
@@ -38,46 +55,137 @@ const filenameHint = (filename: string): BankSource | null => {
   return null;
 };
 
-// Recognised header tokens (already passed through `norm` → lowercase, alnum only).
-const TOKENS = {
-  date: ["date", "postingdate", "postedat", "transactiondate", "initiateddate", "availableondate", "createdutc", "created"],
-  amount: ["amount", "amountusd", "transactionamount", "net", "gross"],
-  credit: ["credit", "credits", "deposit", "deposits"],
-  debit: ["debit", "debits", "withdrawal", "withdrawals"],
-  description: ["description", "memo", "details", "tofrom", "merchant", "payee", "counterparty", "type", "reportingcategory"],
-  balance: ["balance", "runningbalance", "endingbalance"],
-  status: ["status"],
-  brex: ["tofrom", "accountnumberlastfour", "accountlastfour", "last4"],
-};
+// -------------------- header signature helpers --------------------
+type Sig =
+  | "brex"
+  | "svb_bai"
+  | "svb_sweep"
+  | "ramp"
+  | "generic_credit_debit"
+  | "generic_desc_amt_bal"
+  | "generic_desc_amt"
+  | null;
 
+interface HeaderInfo {
+  lineIdx: number;
+  raw: string;
+  cols: string[]; // normalized
+  rawCols: string[]; // original (untrimmed-normalized)
+  sig: Sig;
+}
+
+const hasAll = (cols: string[], tokens: string[]) =>
+  tokens.every((t) => cols.includes(t));
 const hasAny = (cols: string[], tokens: string[]) =>
   tokens.some((t) => cols.includes(t));
 
-// Score each candidate header line by how many token groups it covers.
-const scoreHeader = (cols: string[]): number => {
-  let s = 0;
-  if (hasAny(cols, TOKENS.date)) s += 1;
-  if (hasAny(cols, TOKENS.amount) || hasAny(cols, TOKENS.credit) || hasAny(cols, TOKENS.debit)) s += 1;
-  if (hasAny(cols, TOKENS.description)) s += 1;
-  if (hasAny(cols, TOKENS.balance)) s += 1;
-  if (hasAny(cols, TOKENS.brex)) s += 1;
-  return s;
+const classifyHeader = (cols: string[]): Sig => {
+  // Brex: "To/From" + "Account Number Last Four"
+  if (hasAll(cols, ["tofrom"]) && hasAny(cols, ["accountnumberlastfour", "accountlastfour", "last4"])) {
+    return "brex";
+  }
+  // SVB BAI: Bank ID + Account Number + Account Title + BAI Type Code
+  if (
+    hasAll(cols, ["bankid", "accountnumber", "accounttitle"]) &&
+    hasAny(cols, ["baitypecode", "baicode", "baitype"])
+  ) {
+    return "svb_bai";
+  }
+  // SVB Money Market Sweep: Sweep Account + Sweep Product
+  if (hasAll(cols, ["sweepaccount", "sweepproduct"])) return "svb_sweep";
+  // Ramp: Signed Transaction Amount + Detailed Transaction Type
+  if (hasAll(cols, ["signedtransactionamount", "detailedtransactiontype"])) return "ramp";
+  // Generic shapes (used by Stripe / legacy SVB checking CSVs).
+  const dateLike = hasAny(cols, ["date", "postingdate", "postedat", "transactiondate", "createdutc", "created"]);
+  const descLike = hasAny(cols, ["description", "memo", "details", "merchant", "payee", "counterparty"]);
+  const amtLike = hasAny(cols, ["amount", "amountusd", "transactionamount", "net", "gross"]);
+  const creditLike = hasAny(cols, ["credit", "credits", "deposit", "deposits"]);
+  const debitLike = hasAny(cols, ["debit", "debits", "withdrawal", "withdrawals"]);
+  const balLike = hasAny(cols, ["balance", "runningbalance", "endingbalance"]);
+  if (dateLike && descLike && creditLike && debitLike) return "generic_credit_debit";
+  if (dateLike && descLike && amtLike && balLike) return "generic_desc_amt_bal";
+  if (dateLike && descLike && amtLike) return "generic_desc_amt";
+  return null;
 };
 
-// Find the best header row in the first 20 non-empty lines.
-const findHeader = (text: string): { cols: string[]; raw: string } | null => {
-  const lines = text.split("\n").filter((l) => l.trim().length > 0);
-  let best: { cols: string[]; raw: string; score: number } | null = null;
-  for (let i = 0; i < Math.min(lines.length, 20); i++) {
-    const cols = splitCsvLine(lines[i]).map(norm);
-    const s = scoreHeader(cols);
-    if (s >= 2 && (!best || s > best.score)) {
-      best = { cols, raw: lines[i], score: s };
+const findHeader = (text: string): HeaderInfo | null => {
+  const lines = text.split("\n");
+  // Scan more lines than before — SVB BAI files prepend several metadata rows.
+  const limit = Math.min(lines.length, 40);
+  let best: HeaderInfo | null = null;
+  let bestPriority = -1;
+  // Priority ordering: bank-specific signatures beat generic shapes.
+  const prio: Record<Exclude<Sig, null>, number> = {
+    brex: 5,
+    svb_bai: 5,
+    svb_sweep: 5,
+    ramp: 5,
+    generic_credit_debit: 3,
+    generic_desc_amt_bal: 2,
+    generic_desc_amt: 1,
+  };
+  for (let i = 0; i < limit; i++) {
+    const raw = lines[i];
+    if (!raw || !raw.trim()) continue;
+    const rawCols = splitCsvLine(raw);
+    const cols = rawCols.map(norm);
+    const sig = classifyHeader(cols);
+    if (!sig) continue;
+    const p = prio[sig];
+    if (p > bestPriority) {
+      best = { lineIdx: i, raw, cols, rawCols, sig };
+      bestPriority = p;
+      if (p === 5) break; // best possible — stop early
     }
   }
-  return best ? { cols: best.cols, raw: best.raw } : null;
+  return best;
 };
 
+// First non-empty data row after the header.
+const firstDataRow = (text: string, headerIdx: number): string[] | null => {
+  const lines = text.split("\n");
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw || !raw.trim()) continue;
+    const cols = splitCsvLine(raw);
+    if (cols.every((c) => !c)) continue;
+    return cols;
+  }
+  return null;
+};
+
+// Column lookup by any of a set of normalized header tokens.
+const valueByToken = (
+  headerCols: string[],
+  row: string[],
+  tokens: string[]
+): string | null => {
+  for (let i = 0; i < headerCols.length; i++) {
+    if (tokens.includes(headerCols[i])) {
+      return (row[i] ?? "").trim();
+    }
+  }
+  return null;
+};
+
+const onlyDigits = (s: string) => s.replace(/\D/g, "");
+
+// -------------------- account → source maps --------------------
+const BREX_LAST4: Record<string, BankSource> = {
+  "8083": "brex_primary",
+  "2515": "brex_treasury",
+  "9173": "brex_stripe_clearing",
+};
+
+const resolveSvbBai = (accountNumber: string): BankSource | null => {
+  const d = onlyDigits(accountNumber);
+  if (!d) return null;
+  if (d.endsWith("4687")) return "svb_checking";
+  if (d.endsWith("0999")) return "svb_collateral";
+  return null;
+};
+
+// -------------------- main entry --------------------
 export const detectAndParse = (
   rawText: string,
   filename: string
@@ -85,85 +193,122 @@ export const detectAndParse = (
   const text = normalizeText(rawText);
   const hint = filenameHint(filename);
   const warnings: string[] = [];
-
   const header = findHeader(text);
+
   if (!header) {
     return {
       source: hint ?? "brex_primary",
       confidence: "low",
       rows: [],
       warnings: [
-        "Could not find a recognizable header row (looked for Date / Amount / Description columns). Re-export from your bank or remove extra summary rows at the top of the file.",
+        hint
+          ? `No recognizable header found; falling back to filename hint (${hint}).`
+          : "Could not find a recognizable header row. Re-export from your bank or remove extra summary rows at the top of the file.",
       ],
     };
   }
 
-  const cols = header.cols;
-  const hasCredit = hasAny(cols, TOKENS.credit);
-  const hasDebit = hasAny(cols, TOKENS.debit);
-  const hasBrex = hasAny(cols, TOKENS.brex);
-  const hasBalance = hasAny(cols, TOKENS.balance);
-  const hasDescription = hasAny(cols, TOKENS.description);
-  const hasAmount = hasAny(cols, TOKENS.amount);
+  let source: BankSource | null = null;
+  let confidence: "high" | "medium" | "low" = "low";
+  let signalUsed = "";
 
-  // Pick source from header signals; filename only breaks ties or refines flavour.
-  let source: BankSource;
-  let confidence: "high" | "medium" | "low" = "high";
+  const dataRow = firstDataRow(text, header.lineIdx);
 
-  // Ramp filename hint takes priority — Ramp CSVs share Brex-like columns.
-  if (hint === "ramp_checking" || hint === "ramp_treasury") {
-    source = hint;
-  } else if (hasBrex) {
-    source =
-      hint === "brex_treasury" || hint === "brex_stripe_clearing"
-        ? hint
-        : "brex_primary";
-  } else if (hasCredit && hasDebit) {
-    source = "svb_money_market";
-  } else if (hasDescription && hasAmount && hasBalance) {
-    // Ambiguous — SVB Checking and Stripe (with balance column) share this shape.
-    if (hint === "stripe") {
-      source = "stripe";
-    } else {
-      source = "svb_checking";
-      if (!hint) {
+  switch (header.sig) {
+    case "brex": {
+      const last4Raw = dataRow
+        ? valueByToken(header.cols, dataRow, ["accountnumberlastfour", "accountlastfour", "last4"])
+        : null;
+      const last4 = last4Raw ? onlyDigits(last4Raw).slice(-4) : "";
+      const mapped = last4 ? BREX_LAST4[last4] : undefined;
+      if (mapped) {
+        source = mapped;
+        confidence = "high";
+        signalUsed = `Brex header + Account Number Last Four = ${last4}`;
+      } else {
+        source = hint && hint.startsWith("brex_") ? hint : "brex_primary";
         confidence = "medium";
-        warnings.push(
-          "Headers match both SVB Checking and Stripe formats — confirm bank source before importing."
-        );
+        signalUsed = `Brex header (no/unknown last-four "${last4Raw ?? ""}") — used filename hint`;
       }
+      break;
     }
-  } else if (hasDescription && hasAmount) {
-    source = "stripe";
-  } else if (hasAmount) {
-    // Bare-bones export — fall back to Stripe-style parsing.
-    source = hint ?? "stripe";
-    confidence = "medium";
-    warnings.push(
-      "Header row is missing some expected columns; defaulted based on filename. Confirm before importing."
-    );
-  } else {
-    return {
-      source: hint ?? "brex_primary",
-      confidence: "low",
-      rows: [],
-      warnings: ["Header row was found but no Amount / Credit / Debit column was recognised."],
-    };
+    case "svb_bai": {
+      const acctRaw = dataRow
+        ? valueByToken(header.cols, dataRow, ["accountnumber"])
+        : null;
+      const mapped = acctRaw ? resolveSvbBai(acctRaw) : null;
+      if (mapped) {
+        source = mapped;
+        confidence = "high";
+        signalUsed = `SVB BAI header + Account Number ending ${onlyDigits(acctRaw!).slice(-4)}`;
+      } else {
+        source = hint === "svb_collateral" ? "svb_collateral" : "svb_checking";
+        confidence = "medium";
+        signalUsed = `SVB BAI header (unknown account "${acctRaw ?? ""}") — used filename hint`;
+      }
+      break;
+    }
+    case "svb_sweep": {
+      source = "svb_money_market";
+      confidence = "high";
+      signalUsed = "SVB sweep header (Sweep Account + Sweep Product)";
+      break;
+    }
+    case "ramp": {
+      source = "ramp_checking";
+      confidence = "high";
+      signalUsed = "Ramp header (Signed Transaction Amount + Detailed Transaction Type)";
+      // Filename can refine to ramp_treasury if explicitly named.
+      if (hint === "ramp_treasury") {
+        source = "ramp_treasury";
+        signalUsed += " + filename hint (treasury)";
+      }
+      break;
+    }
+    case "generic_credit_debit": {
+      source = "svb_money_market";
+      confidence = hint ? "medium" : "low";
+      signalUsed = "Generic Credit/Debit header (no bank signature)";
+      break;
+    }
+    case "generic_desc_amt_bal": {
+      // Ambiguous: SVB Checking vs Stripe (with Balance). Lean on filename.
+      if (hint === "stripe") {
+        source = "stripe";
+      } else {
+        source = "svb_checking";
+      }
+      confidence = "medium";
+      signalUsed = "Generic Date/Description/Amount/Balance — used filename hint";
+      break;
+    }
+    case "generic_desc_amt": {
+      source = hint ?? "stripe";
+      confidence = "low";
+      signalUsed = "Generic Date/Description/Amount — used filename fallback";
+      break;
+    }
+    default:
+      source = hint ?? "brex_primary";
+      confidence = "low";
+      signalUsed = "No bank signature recognised in header";
   }
 
-  // Filename disagreement → confidence drop + warning (same-family flavours allowed).
+  warnings.push(`Detected ${source} via: ${signalUsed}.`);
   if (hint && hint !== source) {
-    const sameBrexFamily = hint.startsWith("brex_") && source.startsWith("brex_");
-    const sameRampFamily = hint.startsWith("ramp_") && source.startsWith("ramp_");
-    if (!sameBrexFamily && !sameRampFamily) {
-      confidence = "medium";
+    const sameFamily =
+      (hint.startsWith("brex_") && source!.startsWith("brex_")) ||
+      (hint.startsWith("ramp_") && source!.startsWith("ramp_")) ||
+      (hint.startsWith("svb_") && source!.startsWith("svb_"));
+    if (!sameFamily) {
+      if (confidence === "high") confidence = "medium";
       warnings.push(
-        `Filename suggests ${hint} but headers look like ${source}. Confirm bank source before importing.`
+        `Filename suggests ${hint} but content looks like ${source}. Confirm bank source before importing.`
       );
     }
   }
 
-  // Always run the parser, even if it returns zero rows.
+  // ---- parse ----
   let rows;
   switch (source) {
     case "brex_primary":
@@ -171,26 +316,30 @@ export const detectAndParse = (
     case "brex_stripe_clearing":
     case "ramp_checking":
     case "ramp_treasury":
-      // Ramp exports share Brex-style columns (Date, Merchant/Description, Amount, Balance).
       rows = parseBrexCsv(text, source);
       break;
     case "svb_money_market":
       rows = parseSvbMoneyMarketCsv(text);
       break;
     case "svb_checking":
-      rows = parseSvbCheckingCsv(text);
+    case "svb_collateral":
+      // BAI/checking files share the row shape from svbChecking's perspective.
+      rows = parseSvbCheckingCsv(text).map((r) => ({ ...r, bank_source: source! }));
       break;
     case "stripe":
       rows = parseStripeCsv(text);
       break;
+    case "brex_card":
+      rows = [];
+      break;
   }
 
-  if (!rows.length) {
+  if (!rows!.length) {
     confidence = "low";
     warnings.push(
       `Detected ${source} but parsed 0 transactions. The file may have an unexpected layout — try the source dropdown to override.`
     );
   }
 
-  return { source, confidence, rows, warnings };
+  return { source: source!, confidence, rows: rows!, warnings };
 };
