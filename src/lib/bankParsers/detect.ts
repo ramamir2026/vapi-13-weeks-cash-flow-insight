@@ -259,7 +259,7 @@ export const detectAndParse = (
         ? valueByToken(header.cols, dataRow, ["accountnumberlastfour", "accountlastfour", "last4"])
         : null;
       const last4 = last4Raw ? onlyDigits(last4Raw).slice(-4) : "";
-      const mapped = last4 ? BREX_LAST4[last4] : undefined;
+      const mapped = last4 ? brexMap[last4] : undefined;
       if (mapped) {
         source = mapped;
         confidence = "high";
