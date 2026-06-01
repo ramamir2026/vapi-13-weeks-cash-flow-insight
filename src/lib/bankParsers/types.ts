@@ -183,7 +183,7 @@ const RULES: Array<{ keys: string[]; category: string }> = [
   { keys: ["sweep", "transfer to", "transfer from", "brex treasury"], category: "zba_sweep" },
   { keys: ["sequoia one"], category: "payroll" },
   { keys: ["stripe payout", "stripe transfer"], category: "stripe_revenue" },
-  { keys: ["anthropic", "openai", "azure", "deepgram", "elevenlabs", "twilio", "pump"], category: "cogs" },
+  { keys: ["anthropic", "openai", "azure", "deepgram", "elevenlabs", "twilio", "pump", "google", "gemini", "neon", "chronosphere", "nango"], category: "cogs" },
   { keys: ["brex inc"], category: "card_payments" },
   { keys: ["montgomery", "supervisor", "creators corner", "pianta"], category: "sm" },
   { keys: ["prizm", "execcatalyst", "candidate labs"], category: "recruiting" },
