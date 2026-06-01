@@ -324,7 +324,7 @@ export const detectAndParse = (
     case "svb_checking":
     case "svb_collateral":
       // BAI/checking files share the row shape from svbChecking's perspective.
-      rows = parseSvbCheckingCsv(text).map((r) => ({ ...r, bank_source: source! }));
+      rows = parseSvbCheckingCsv(text, source);
       break;
     case "stripe":
       rows = parseStripeCsv(text);

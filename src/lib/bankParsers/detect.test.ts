@@ -18,13 +18,13 @@ const brexStripeClearing = `${brexHeader}
 2026-05-12,Stripe Transfer,9000.00,75000.00,Posted,9173`;
 
 const svbBaiHeader =
-  "Bank ID,Account Number,Account Title,BAI Type Code,Amount,Date,Description";
+  "Bank ID,Account Number,Account Title,BAI Type Code,Posting Date,Credit Amount,Debit Amount,Closing Ledger Balance,Text";
 
 const svbChecking = `${svbBaiHeader}
-121140399,1234567894687,VAPI Operating,475,1500.00,2026-05-12,Wire In`;
+121140399,1234567894687,VAPI Operating,475,2026-05-12,1500.00,0.00,1000000.00,Wire In`;
 
 const svbCollateral = `${svbBaiHeader}
-121140399,9876543210999,VAPI Collateral MMA,475,0.01,2026-05-12,Interest`;
+121140399,9876543210999,VAPI Collateral MMA,475,2026-05-12,0.01,0.00,5000000.01,Interest`;
 
 const svbSweep = `Sweep Account,Sweep Product,Date,Description,Credit,Debit,Balance
 1234,Heritage MMA,2026-05-12,Sweep In,10000.00,0.00,5000000.00`;

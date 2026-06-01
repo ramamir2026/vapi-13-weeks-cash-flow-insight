@@ -1,7 +1,20 @@
-// SVB Analysis Checking CSV parser.
-// Columns: Date, Description, Amount, Balance
+// SVB BAI export parser — used for both svb_checking and svb_collateral.
+// Real columns (representative):
+//   Bank ID, Account Number, Account Title, BAI Type Code,
+//   Credit Amount, Debit Amount, Closing Ledger Balance,
+//   Posting Date (or As Of Date / Transaction Date),
+//   Text / Customer Reference / Bank Reference  (description-ish)
+//
+// Amount derivation:
+//   amount = creditAmount - debitAmount (negative on outflows)
+// Balance:
+//   "Closing Ledger Balance" if present, otherwise null.
+// Vendor (description):
+//   first non-empty of Text, Customer Reference, Bank Reference, BAI Type Code,
+//   else Account Title.
 import {
   autoCategorize,
+  BankSource,
   norm,
   normalizeText,
   parseAmount,
@@ -11,31 +24,76 @@ import {
   toIsoDate,
 } from "./types";
 
-const HEADER_MAP: Record<string, "date" | "description" | "amount" | "balance"> = {
+type Field =
+  | "date"
+  | "credit"
+  | "debit"
+  | "balance"
+  | "text"
+  | "custref"
+  | "bankref"
+  | "baitype"
+  | "accounttitle"
+  | "accountnumber";
+
+const HEADER_MAP: Record<string, Field> = {
+  // Date variants
   date: "date",
   postingdate: "date",
+  postedat: "date",
+  asofdate: "date",
   transactiondate: "date",
-  description: "description",
-  memo: "description",
-  details: "description",
-  amount: "amount",
-  transactionamount: "amount",
-  balance: "balance",
-  runningbalance: "balance",
+  valuedate: "date",
+  effectivedate: "date",
+  // Credit / Debit (BAI)
+  creditamount: "credit",
+  credit: "credit",
+  credits: "credit",
+  deposit: "credit",
+  debitamount: "debit",
+  debit: "debit",
+  debits: "debit",
+  withdrawal: "debit",
+  // Balance
+  closingledgerbalance: "balance",
+  ledgerbalance: "balance",
+  closingbalance: "balance",
   endingbalance: "balance",
+  runningbalance: "balance",
+  balance: "balance",
+  // Description-ish
+  text: "text",
+  description: "text",
+  memo: "text",
+  details: "text",
+  customerreference: "custref",
+  custref: "custref",
+  bankreference: "bankref",
+  bankref: "bankref",
+  baitypecode: "baitype",
+  baicode: "baitype",
+  baitype: "baitype",
+  // Account identifiers
+  accounttitle: "accounttitle",
+  accountnumber: "accountnumber",
 };
 
-export const parseSvbCheckingCsv = (rawText: string): ParsedTxn[] => {
+export const parseSvbCheckingCsv = (
+  rawText: string,
+  source: BankSource = "svb_checking",
+): ParsedTxn[] => {
   const text = normalizeText(rawText);
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   let headerIdx = -1;
-  let mapping: Array<keyof typeof HEADER_MAP | string | null> = [];
-  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+  let mapping: Array<Field | null> = [];
+  for (let i = 0; i < Math.min(lines.length, 40); i++) {
     const cols = splitCsvLine(lines[i]);
     const m = cols.map((c) => HEADER_MAP[norm(c)] ?? null);
-    if (m.includes("date") && m.includes("description") && m.includes("amount")) {
+    const hasDate = m.includes("date");
+    const hasAmount = m.includes("credit") || m.includes("debit");
+    if (hasDate && hasAmount) {
       headerIdx = i;
       mapping = m;
       break;
@@ -47,23 +105,32 @@ export const parseSvbCheckingCsv = (rawText: string): ParsedTxn[] => {
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const cols = splitCsvLine(lines[i]);
     if (cols.every((c) => !c)) continue;
-    const rec: Record<string, string> = {};
+    const rec: Partial<Record<Field, string>> = {};
     cols.forEach((val, idx) => {
       const k = mapping[idx];
-      if (k) rec[k] = val;
+      if (k && val) rec[k] = val;
     });
+
     const date = toIsoDate(rec.date || "");
-    const vendor = (rec.description || "").trim();
-    const amount = parseAmount(rec.amount || "0");
-    if (!date || !vendor || amount === 0) continue;
+    if (!date) continue;
+
+    const credit = parseAmount(rec.credit || "0");
+    const debit = parseAmount(rec.debit || "0");
+    const amount = Math.abs(credit) - Math.abs(debit);
+    if (amount === 0) continue;
+
+    const vendor =
+      (rec.text || rec.custref || rec.bankref || rec.baitype || rec.accounttitle || "")
+        .trim() || "(no description)";
+
     rows.push({
       id: rid(),
       date,
       vendor,
       amount,
       balance: rec.balance ? parseAmount(rec.balance) : null,
-      category: autoCategorize(vendor, "svb_checking"),
-      bank_source: "svb_checking",
+      category: autoCategorize(vendor, source),
+      bank_source: source,
     });
   }
   return rows;
