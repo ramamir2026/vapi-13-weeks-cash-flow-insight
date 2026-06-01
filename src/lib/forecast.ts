@@ -117,7 +117,7 @@ const OPEX_LABELS: Record<string, string> = {
   opex_ga: "G&A",
 };
 
-const PAYROLL_WEEKS = new Set([2, 4, 6, 8, 11, 13]);
+const PAYROLL_WEEKS = new Set([2, 4, 6, 8, 10, 12]);
 
 const COGS_GROWTH_KEYS = new Set(["cogs_anthropic", "cogs_azure"]);
 const COGS_MONTHLY_GROWTH = 0.07;
