@@ -1,5 +1,10 @@
-// SVB Money Market / Sweep CSV parser.
-// Columns: Date, Description, Credit, Debit, Balance
+// SVB Money-Market sweep report parser.
+// Real columns: Date, Transaction, Sweep Account, Sweep Product, Amount
+// (legacy Date/Description/Credit/Debit/Balance also supported as a fallback).
+//
+// Sweep reports do not include a running balance column. We derive a
+// pseudo-balance per row as the cumulative sum of the Amount column, so the
+// last row's balance equals the sweep account's ending position.
 import {
   autoCategorize,
   norm,
@@ -11,12 +16,29 @@ import {
   toIsoDate,
 } from "./types";
 
-const HEADER_MAP: Record<string, "date" | "description" | "credit" | "debit" | "balance"> = {
+type Field =
+  | "date"
+  | "transaction"
+  | "sweepaccount"
+  | "sweepproduct"
+  | "amount"
+  | "credit"
+  | "debit"
+  | "balance"
+  | "description";
+
+const HEADER_MAP: Record<string, Field> = {
   date: "date",
   postingdate: "date",
-  description: "description",
-  memo: "description",
-  details: "description",
+  transactiondate: "date",
+  valuedate: "date",
+  transaction: "transaction",
+  transactiontype: "transaction",
+  sweepaccount: "sweepaccount",
+  sweepproduct: "sweepproduct",
+  amount: "amount",
+  transactionamount: "amount",
+  // Legacy fallback columns
   credit: "credit",
   credits: "credit",
   deposit: "credit",
@@ -26,6 +48,9 @@ const HEADER_MAP: Record<string, "date" | "description" | "credit" | "debit" | "
   balance: "balance",
   endingbalance: "balance",
   runningbalance: "balance",
+  description: "description",
+  memo: "description",
+  details: "description",
 };
 
 export const parseSvbMoneyMarketCsv = (rawText: string): ParsedTxn[] => {
@@ -34,10 +59,17 @@ export const parseSvbMoneyMarketCsv = (rawText: string): ParsedTxn[] => {
   if (lines.length < 2) return [];
 
   let headerIdx = -1;
-  let mapping: Array<keyof typeof HEADER_MAP | string | null> = [];
-  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+  let mapping: Array<Field | null> = [];
+  let mode: "sweep" | "credit_debit" | null = null;
+  for (let i = 0; i < Math.min(lines.length, 40); i++) {
     const cols = splitCsvLine(lines[i]);
     const m = cols.map((c) => HEADER_MAP[norm(c)] ?? null);
+    if (m.includes("date") && m.includes("amount") && m.includes("sweepproduct")) {
+      headerIdx = i;
+      mapping = m;
+      mode = "sweep";
+      break;
+    }
     if (
       m.includes("date") &&
       m.includes("description") &&
@@ -46,32 +78,53 @@ export const parseSvbMoneyMarketCsv = (rawText: string): ParsedTxn[] => {
     ) {
       headerIdx = i;
       mapping = m;
+      mode = "credit_debit";
       break;
     }
   }
-  if (headerIdx === -1) return [];
+  if (headerIdx === -1 || !mode) return [];
 
   const rows: ParsedTxn[] = [];
+  let running = 0;
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const cols = splitCsvLine(lines[i]);
     if (cols.every((c) => !c)) continue;
-    const rec: Record<string, string> = {};
+    const rec: Partial<Record<Field, string>> = {};
     cols.forEach((val, idx) => {
       const k = mapping[idx];
-      if (k) rec[k] = val;
+      if (k && val) rec[k] = val;
     });
+
     const date = toIsoDate(rec.date || "");
-    const vendor = (rec.description || "").trim();
-    const credit = parseAmount(rec.credit || "0");
-    const debit = parseAmount(rec.debit || "0");
-    const amount = credit - debit;
-    if (!date || !vendor || amount === 0) continue;
+    if (!date) continue;
+
+    let amount = 0;
+    let vendor = "";
+    let balance: number | null = null;
+
+    if (mode === "sweep") {
+      amount = parseAmount(rec.amount || "0");
+      vendor =
+        (rec.transaction || rec.sweepproduct || rec.sweepaccount || "").trim() ||
+        "Sweep";
+      running += amount;
+      balance = running;
+    } else {
+      const credit = parseAmount(rec.credit || "0");
+      const debit = parseAmount(rec.debit || "0");
+      amount = Math.abs(credit) - Math.abs(debit);
+      vendor = (rec.description || "").trim() || "Sweep";
+      balance = rec.balance ? parseAmount(rec.balance) : null;
+    }
+
+    if (amount === 0) continue;
+
     rows.push({
       id: rid(),
       date,
       vendor,
       amount,
-      balance: rec.balance ? parseAmount(rec.balance) : null,
+      balance,
       category: autoCategorize(vendor, "svb_money_market"),
       bank_source: "svb_money_market",
     });
