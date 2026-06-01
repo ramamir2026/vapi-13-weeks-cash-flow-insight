@@ -356,7 +356,30 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
                           {f.rows.length}
                         </TableCell>
                         <TableCell className="text-right text-xs tabular-nums">
-                          {f.derivedBalance != null && f.balanceAsOf ? (
+                          {MANUAL_BALANCE_SOURCES.has(f.overrideSource) ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                inputMode="decimal"
+                                placeholder="Manual balance"
+                                value={f.derivedBalance ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  const n = v === "" ? null : Number(v);
+                                  updateFile(f.id, {
+                                    derivedBalance: Number.isFinite(n as number) ? (n as number) : null,
+                                    balanceAsOf: n != null ? priorFridayISO() : null,
+                                  });
+                                }}
+                                className="h-7 w-32 text-right text-xs"
+                              />
+                              <span className={cn("text-[10px]", warnText)}>
+                                manual entry — confirm
+                                {f.balanceAsOf ? ` (as of ${f.balanceAsOf})` : ""}
+                              </span>
+                            </div>
+                          ) : f.derivedBalance != null && f.balanceAsOf ? (
                             <div className="flex flex-col items-end">
                               <span className="font-medium text-foreground">
                                 {f.derivedBalance.toLocaleString("en-US", {
