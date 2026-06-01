@@ -685,6 +685,112 @@ const StatementUploadsTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Manual balance entry — Ramp CSV has no balance column. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Manual balance entry (Ramp)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            The Ramp bank feed does not carry a running balance, so the opening
+            balances for{" "}
+            <span className="font-medium text-foreground">Ramp Checking</span> and{" "}
+            <span className="font-medium text-foreground">Ramp Managed Portfolio</span>{" "}
+            must be entered manually from the Ramp statement or portal. Uploading
+            a Ramp statement PDF below will pre-fill these.
+          </p>
+          <RoleGate
+            role="editor"
+            fallback={
+              <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 text-center text-xs text-muted-foreground">
+                Viewers cannot enter manual balances.
+              </div>
+            }
+          >
+            <div className="space-y-2">
+              {Array.from(MANUAL_BALANCE_SOURCES).map((src) => {
+                const stmt = latestByBank[src];
+                const edit = manualEdits[src] ?? {
+                  value: stmt ? String(stmt.closing_balance) : "",
+                  asOf: stmt?.statement_date ?? priorFridayISO(),
+                };
+                const parsed = edit.value === "" ? null : Number(edit.value);
+                const canSave = parsed != null && Number.isFinite(parsed) && !!edit.asOf;
+                return (
+                  <div
+                    key={src}
+                    className="flex flex-wrap items-end gap-2 rounded-md border border-border bg-muted/20 p-3"
+                  >
+                    <div className="flex-1">
+                      <div className="text-xs font-medium">{BANK_LABEL[src]}</div>
+                      <div className={cn("text-[10px]", warnText)}>
+                        manual entry — confirm
+                      </div>
+                    </div>
+                    <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Balance
+                      <Input
+                        type="number"
+                        step="0.01"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={edit.value}
+                        onChange={(e) =>
+                          setManualEdits((m) => ({
+                            ...m,
+                            [src]: { ...edit, value: e.target.value },
+                          }))
+                        }
+                        className="h-8 w-40 text-right text-xs"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      As of
+                      <Input
+                        type="date"
+                        value={edit.asOf}
+                        onChange={(e) =>
+                          setManualEdits((m) => ({
+                            ...m,
+                            [src]: { ...edit, asOf: e.target.value },
+                          }))
+                        }
+                        className="h-8 w-40 text-xs"
+                      />
+                    </label>
+                    <Button
+                      size="sm"
+                      disabled={!canSave || busy === src}
+                      onClick={async () => {
+                        if (!canSave) return;
+                        setBusy(src);
+                        try {
+                          await upload.mutateAsync({
+                            bank_source: src,
+                            statement_date: edit.asOf,
+                            closing_balance: parsed!,
+                            filename: `manual-entry:${src}`,
+                          });
+                          setManualEdits((m) => {
+                            const next = { ...m };
+                            delete next[src];
+                            return next;
+                          });
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      {busy === src ? "Saving…" : stmt ? "Update" : "Save"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </RoleGate>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Verify opening balances against statements</CardTitle>
