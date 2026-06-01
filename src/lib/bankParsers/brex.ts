@@ -29,6 +29,7 @@ const HEADER_MAP: Record<
   memo: "vendor",
   amount: "amount",
   amountusd: "amount",
+  signedtransactionamount: "amount",
   balance: "balance",
   endingbalance: "balance",
   runningbalance: "balance",

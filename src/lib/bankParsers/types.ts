@@ -7,6 +7,7 @@ export type BankSource =
   | "brex_card"
   | "svb_checking"
   | "svb_money_market"
+  | "svb_collateral"
   | "stripe"
   | "ramp_checking"
   | "ramp_treasury";
@@ -18,6 +19,7 @@ export const BANK_LABEL: Record<BankSource, string> = {
   brex_card: "Brex Card",
   svb_checking: "SVB Analysis Checking",
   svb_money_market: "SVB Money Market",
+  svb_collateral: "SVB Collateral MMA (restricted)",
   stripe: "Stripe",
   ramp_checking: "Ramp Checking",
   ramp_treasury: "Ramp Treasury",
@@ -26,6 +28,8 @@ export const BANK_LABEL: Record<BankSource, string> = {
 // Maps each bank source to the assumption key that holds its opening cash balance.
 // brex_card maps dynamically based on statement month (see cardStatement.ts) and
 // has no single static assumption key.
+// svb_collateral maps to a RESTRICTED key that is deliberately excluded from the
+// spendable opening-cash sum in forecast.ts.
 export const BANK_TO_ASSUMPTION_KEY: Record<Exclude<BankSource, "brex_card">, string> & {
   brex_card?: string;
 } = {
@@ -34,6 +38,7 @@ export const BANK_TO_ASSUMPTION_KEY: Record<Exclude<BankSource, "brex_card">, st
   brex_stripe_clearing: "cash_stripe_clearing",
   svb_checking: "cash_svb_checking",
   svb_money_market: "cash_svb_mm",
+  svb_collateral: "cash_svb_collateral_restricted",
   stripe: "cash_stripe_clearing",
   ramp_checking: "cash_ramp_checking",
   ramp_treasury: "cash_ramp_treasury",
