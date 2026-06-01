@@ -153,6 +153,8 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         warnings: result.warnings,
         rows: result.rows,
         confirmed: score >= AUTO_ACCEPT_THRESHOLD,
+        derivedBalance: result.derivedBalance,
+        balanceAsOf: result.balanceAsOf,
       });
     }
     if (staged.length) {
