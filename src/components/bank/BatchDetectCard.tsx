@@ -226,8 +226,15 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
       fs.map((f) => {
         if (f.id !== id) return f;
         const next = { ...f, ...patch };
-        // Manual override → require explicit confirmation
-        if (patch.overrideSource && patch.overrideSource !== f.detectedSource) {
+        // Manual override → require explicit confirmation and recompute recon
+        // (status depends on source, e.g. MANUAL_BALANCE_SOURCES).
+        if (patch.overrideSource && patch.overrideSource !== f.overrideSource) {
+          next.confirmed = false;
+          next.recon = reconcileParsedRows(f.rows, patch.overrideSource);
+          next.reconAck = false;
+        }
+        // Hard gate: can't confirm while a mismatch is unreviewed.
+        if (next.recon.status === "mismatch" && !next.reconAck) {
           next.confirmed = false;
         }
         return next;
