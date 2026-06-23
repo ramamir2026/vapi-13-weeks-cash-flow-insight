@@ -98,9 +98,10 @@ describe("reconcileParsedRows", () => {
 
   it("multi-year file with broken recent window → mismatch", () => {
     const oldRows = buildLedger("2020-01-01", 500_000, [10, -20, 30, -40]);
-    const recent = buildLedger("2026-05-01", 1_500_000, [250, -1_000, 500]);
-    // Corrupt one recent amount.
-    recent[1] = { ...recent[1], amount: recent[1].amount + 100_000 };
+    const deltas = Array.from({ length: 60 }, (_, i) => (i % 2 === 0 ? 250 : -200));
+    const recent = buildLedger("2026-04-15", 1_500_000, deltas);
+    // Corrupt a recent amount well beyond tolerance.
+    recent[10] = { ...recent[10], amount: recent[10].amount + 250_000 };
     const r = reconcileParsedRows([...oldRows, ...recent], "brex_primary");
     expect(r.status).toBe("mismatch");
   });
