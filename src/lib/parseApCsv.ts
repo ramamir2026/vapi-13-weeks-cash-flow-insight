@@ -317,7 +317,7 @@ export const parseApCsv = (
     weeksTotal[weekIndex] += amount;
   }
 
-  if (bills.length === 0 && nonCogsSkipped === 0) {
+  if (bills.length === 0 && nonCogsSkipped === 0 && outOfHorizon === 0) {
     throw new ApCsvParseError(
       "No vendor rows with non-zero balances were found in this report."
     );
