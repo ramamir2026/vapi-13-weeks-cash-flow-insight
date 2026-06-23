@@ -278,7 +278,13 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         >
           <Upload className="h-5 w-5" />
           <div className="font-medium">Drop one or more CSVs, or click to choose</div>
-          <input type="file" accept=".csv,text/csv" multiple className="hidden" onChange={onPick} />
+          <input
+            type="file"
+            accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf"
+            multiple
+            className="hidden"
+            onChange={onPick}
+          />
         </label>
 
         {files.length > 0 && (
