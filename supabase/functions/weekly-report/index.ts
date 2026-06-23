@@ -598,6 +598,48 @@ Deno.serve(async (req: Request) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Finalize gate: only send when explicitly finalized for this week
+    // (or when an explicit { force: true } is passed).
+    let force = false;
+    try {
+      const body = await req.json();
+      force = body?.force === true;
+    } catch {
+      // no body / not JSON → not forced
+    }
+
+    const monday = mondayOf(new Date());
+    const { data: state } = await supabase
+      .from("weekly_report_state")
+      .select("finalized, sent_at")
+      .eq("week_start_date", monday)
+      .maybeSingle();
+
+    const shouldSend = force || state?.finalized === true;
+    if (!shouldSend) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: "week_not_finalized",
+          week_of: monday,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (state?.sent_at && !force) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: "already_sent",
+          week_of: monday,
+          sent_at: state.sent_at,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Step 1: Generate forecast snapshot
     const snap = await generateForecastSnapshot(supabase);
 
@@ -610,6 +652,7 @@ Deno.serve(async (req: Request) => {
         console.error("Failed to mark checklist", e);
       }
     }
+
 
     // Steps 2-6: Build the full context (variance, alerts, insights, AI placeholder)
     const ctx = await buildContext(supabase, snap?.weeks ?? null);
