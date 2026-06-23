@@ -14,7 +14,7 @@ import {
 
 const HEADER_MAP: Record<
   string,
-  "date" | "vendor" | "amount" | "balance" | "status" | "last4"
+  "date" | "vendor" | "amount" | "balance" | "status" | "last4" | "note"
 > = {
   date: "date",
   postingdate: "date",
@@ -26,7 +26,9 @@ const HEADER_MAP: Record<
   merchant: "vendor",
   payee: "vendor",
   counterparty: "vendor",
-  memo: "vendor",
+  memo: "note",
+  externalmemo: "note",
+  note: "note",
   amount: "amount",
   amountusd: "amount",
   signedtransactionamount: "amount",
@@ -39,7 +41,22 @@ const HEADER_MAP: Record<
   last4: "last4",
 };
 
-const SKIP_STATUSES = new Set(["pending", "scheduled", "canceled", "cancelled", "failed"]);
+const SKIP_STATUSES = new Set([
+  "pending",
+  "scheduled",
+  "canceled",
+  "cancelled",
+  "failed",
+  "insufficientfunds",
+  "approvaldenied",
+  "declined",
+  "processing",
+  "reversed",
+  "returned",
+  "void",
+  "voided",
+  "error",
+]);
 
 export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] => {
   const text = normalizeText(rawText);
