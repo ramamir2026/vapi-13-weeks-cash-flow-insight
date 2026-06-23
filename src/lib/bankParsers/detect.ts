@@ -381,7 +381,7 @@ export const detectAndParse = (
         : parseBrexCsv(text, source);
       break;
     case "svb_money_market":
-      rows = parseSvbMoneyMarketCsv(text);
+      rows = parseSvbMoneyMarketCsv(text, mmAnchor ?? null);
       break;
     case "svb_checking":
     case "svb_collateral":
