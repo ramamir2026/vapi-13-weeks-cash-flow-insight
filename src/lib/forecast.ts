@@ -306,6 +306,25 @@ export const buildForecast = (
     }
     cogsRows.push({ key: v.key, label: v.label, weeks: arr });
   }
+
+  // ============ AP override (W1..W5) ============
+  // For each mapped COGS vendor present in the override, replace W1..W5 with
+  // the AP-derived totals (AP wins for that vendor). Vendors NOT in the
+  // override are left on the calendar pay-day model (so Twilio/Gemini/etc.
+  // that aren't billed in the AP file don't get zeroed). `cogs_other` is
+  // never touched — it stays smoothed across the whole window.
+  if (apOverride && apOverride.weeks_by_vendor) {
+    const horizon = Math.min(AP_OVERRIDE_HORIZON, weeksCount);
+    for (const row of cogsRows) {
+      if (row.key === "cogs_other") continue;
+      const v = apOverride.weeks_by_vendor[row.key];
+      if (!Array.isArray(v)) continue;
+      for (let w = 0; w < horizon; w++) {
+        row.weeks[w] = Number(v[w]) || 0;
+      }
+    }
+  }
+
   // Other COGS smoothed
   {
     const monthly = assumptions["cogs_other"] ?? 0;
