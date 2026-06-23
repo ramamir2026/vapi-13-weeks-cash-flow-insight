@@ -28,6 +28,8 @@ import { formatCurrency, formatNumber } from "@/lib/format";
 import { ForecastGrid } from "@/components/forecast/ForecastGrid";
 import { BalanceVerificationBanner } from "@/components/dashboard/BalanceVerificationBanner";
 import { MondayChecklist } from "@/components/dashboard/MondayChecklist";
+import { FinalizeWeekButton, FinalizeWeekStatus } from "@/components/dashboard/FinalizeWeekCard";
+
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { useAutoCheckChecklistItem } from "@/hooks/useBankData";
 import { useAuth } from "@/hooks/useAuth";
@@ -286,6 +288,7 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">
             Editable actuals · Live recompute from assumptions
           </p>
+          <div className="mt-1"><FinalizeWeekStatus /></div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>
@@ -305,8 +308,10 @@ export default function Dashboard() {
             <RefreshCw className={cn("h-4 w-4 mr-2", saveSnapshot.isPending && "animate-spin")} />
             Generate Forecast
           </Button>
+          <FinalizeWeekButton />
         </div>
       </div>
+
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi

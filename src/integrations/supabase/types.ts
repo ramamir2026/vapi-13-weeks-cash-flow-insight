@@ -856,6 +856,39 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_report_state: {
+        Row: {
+          created_at: string
+          finalized: boolean
+          finalized_at: string | null
+          finalized_by: string | null
+          sent_at: string | null
+          sent_via: string | null
+          updated_at: string
+          week_start_date: string
+        }
+        Insert: {
+          created_at?: string
+          finalized?: boolean
+          finalized_at?: string | null
+          finalized_by?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
+          updated_at?: string
+          week_start_date: string
+        }
+        Update: {
+          created_at?: string
+          finalized?: boolean
+          finalized_at?: string | null
+          finalized_by?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
+          updated_at?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
