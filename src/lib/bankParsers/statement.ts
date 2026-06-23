@@ -1,6 +1,7 @@
 // Statement parser: extracts the closing balance from a CSV or text-based PDF
 // monthly statement. Used for opening-balance verification.
 import { parseAmount } from "./types";
+import { extractTextFromPdfBuffer } from "@/lib/ingest";
 
 // Try to find a "balance" or "ending balance" number in the last few non-empty
 // rows of a CSV. Falls back to the largest absolute number near the bottom.
@@ -30,47 +31,13 @@ export const extractClosingBalanceFromCsv = (text: string): number | null => {
 };
 
 // Extract text from a PDF using pdfjs-dist. Returns concatenated page text.
-// Items are sorted top-to-bottom, left-to-right per page so multi-column PDFs
-// produce a sane reading order before we run regex against the text.
+// Delegates to the shared extractor in src/lib/ingest.ts so there's one
+// PDF text-extraction implementation across the app.
 export const extractTextFromPdf = async (file: File): Promise<string> => {
-  const pdfjs = await import("pdfjs-dist");
-  const worker = await import("pdfjs-dist/build/pdf.worker.mjs?url");
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-
   const buf = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: buf }).promise;
-  const parts: string[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const tc = await page.getTextContent();
-
-    // Group items into rows by Y coordinate, then sort each row by X.
-    type Item = { str: string; x: number; y: number };
-    const items: Item[] = tc.items
-      .map((it: any) => {
-        if (!("str" in it)) return null;
-        const tr = it.transform || [1, 0, 0, 1, 0, 0];
-        return { str: it.str as string, x: tr[4] as number, y: tr[5] as number };
-      })
-      .filter((v): v is Item => !!v && v.str.length > 0);
-
-    // Bucket by ~3pt Y bands.
-    const rows = new Map<number, Item[]>();
-    for (const it of items) {
-      const key = Math.round(it.y / 3) * 3;
-      if (!rows.has(key)) rows.set(key, []);
-      rows.get(key)!.push(it);
-    }
-    const sortedYs = [...rows.keys()].sort((a, b) => b - a); // top → bottom
-    const lines: string[] = [];
-    for (const y of sortedYs) {
-      const row = rows.get(y)!.sort((a, b) => a.x - b.x);
-      lines.push(row.map((r) => r.str).join(" "));
-    }
-    parts.push(lines.join("\n"));
-  }
-  return parts.join("\n");
+  return extractTextFromPdfBuffer(buf, " ");
 };
+
 
 // Normalize whitespace and dollar formats so regex matching is robust across
 // banks. Joins broken lines that look like "Ending Balance\n$1,234.56".

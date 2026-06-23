@@ -46,6 +46,7 @@ import {
   extractClosingBalanceFromText,
   extractTextFromPdf,
 } from "@/lib/bankParsers/statement";
+import { ingestFile } from "@/lib/ingest";
 import {
   cardAssumptionKeyForMonth,
   extractCardStatementMonth,
@@ -203,22 +204,26 @@ const TransactionImportTab = () => {
 
   const handleFile = useCallback(
     async (file: File) => {
-      // Guard against non-CSV uploads (PDFs go to the Statements tab).
-      const lower = file.name.toLowerCase();
-      const looksCsv =
-        lower.endsWith(".csv") ||
-        file.type === "text/csv" ||
-        file.type === "application/vnd.ms-excel";
-      if (!looksCsv) {
-        toast.error("Please upload a CSV file. For PDFs use the Statements tab.");
-        return;
-      }
+      // Format-agnostic ingestion: CSV/TSV/TXT/XLSX/PDF → normalized CSV text
+      // before detection. No extension guards — routing is by the detector.
       let text: string;
       try {
-        text = await file.text();
+        const ing = await ingestFile(file);
+        if (ing.sheets.length > 1) {
+          const match = ing.sheets.find(
+            (s) => detectAndParse(s.csv, file.name).rows.length > 0,
+          );
+          text = match?.csv ?? ing.text;
+        } else {
+          text = ing.text;
+        }
       } catch {
-        toast.error("Could not read file. Try re-saving as UTF-8 CSV.");
-        return;
+        try {
+          text = await file.text();
+        } catch {
+          toast.error("Could not read file. Try re-saving as UTF-8 CSV.");
+          return;
+        }
       }
       const result = detectAndParse(text, file.name);
       if (!result.rows.length) {
@@ -411,7 +416,12 @@ const TransactionImportTab = () => {
               <div className="text-xs">
                 Auto-detects Brex / SVB / Stripe formats · drop another file after each import
               </div>
-              <input type="file" accept=".csv,text/csv" className="hidden" onChange={onPick} />
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf"
+                className="hidden"
+                onChange={onPick}
+              />
             </label>
           </RoleGate>
         </CardContent>
