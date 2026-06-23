@@ -522,6 +522,15 @@ const TransactionImportTab = () => {
             </div>
           </CardHeader>
           <CardContent>
+            {rows.length > 0 && (
+              <div className="mb-4">
+                <ReconciliationBanner
+                  recon={recon}
+                  ack={reconAck}
+                  onAckChange={setReconAck}
+                />
+              </div>
+            )}
             {warnings.length > 0 && (
               <div
                 className={cn(
