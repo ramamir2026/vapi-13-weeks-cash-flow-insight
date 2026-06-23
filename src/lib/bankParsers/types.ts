@@ -213,20 +213,52 @@ const RULES: Array<{ keys: string[]; category: string }> = [
   { keys: ["versaconnect", "unityai", "reinform", "alto pharmacy", "monday.com"], category: "ar_collections" },
 ];
 
-export const autoCategorize = (vendor: string, _source: BankSource, _note: string = ""): string => {
+// Detects internal cash-movement transactions (sweeps, ZBA transfers, Stripe
+// clearing transfers, intercompany moves). Real spend that mentions these
+// keywords (Ramp card payments, BILL Pay disbursements, employee
+// reimbursements) is explicitly excluded so it stays categorized as spend.
+export const isInternalTransfer = (
+  counterparty: string,
+  note = "",
+  _self = "",
+): boolean => {
+  const cp = counterparty.toLowerCase();
+  if (cp.includes("ramp card") || cp.includes("bill pay") || cp.includes("reimbursement")) {
+    return false;
+  }
+  const blob = `${counterparty} ${note}`.toLowerCase();
+  const TRANSFER_KEYS = [
+    "investment account",
+    "vapi, inc",
+    "vapi inc",
+    "primary checking",
+    "treasury -",
+    "treasury-",
+    "stripe clearing",
+    "automatic transfer between brex",
+    "cash sweep",
+    "zero bal trf",
+    "internal transfer",
+  ];
+  return TRANSFER_KEYS.some((k) => blob.includes(k));
+};
+
+export const autoCategorize = (vendor: string, source: BankSource, note: string = ""): string => {
   const v = vendor.toLowerCase();
+  if (isInternalTransfer(vendor, note)) return 'zba_sweep';
+  if ((source === 'brex_stripe_clearing' || source === 'stripe') && v.includes('stripe')) return 'stripe_revenue';
   if (v.includes('sweep') || v.includes('transfer to') || v.includes('transfer from') || v.includes('brex treasury')) return 'zba_sweep';
   if (v.includes('sequoia one')) return 'payroll';
   if (v.includes('stripe payout') || v.includes('stripe transfer')) return 'stripe_revenue';
-  if (v.includes('anthropic') || v.includes('openai') || v.includes('azure') || v.includes('deepgram') || v.includes('elevenlabs') || v.includes('twilio') || v.includes('pump') || v.includes('google') || v.includes('gemini') || v.includes('neon') || v.includes('chronosphere') || v.includes('nango')) return 'cogs';
-  if (v.includes('brex inc')) return 'card_payments';
-  if (v.includes('montgomery') || v.includes('supervisor') || v.includes('creators corner') || v.includes('pianta') || v.includes('martin sign')) return 'sm';
-  if (v.includes('prizm') || v.includes('execcatalyst') || v.includes('candidate labs') || v.includes('launch search')) return 'recruiting';
-  if (v.includes('hogan lovells') || v.includes('cti iii') || v.includes('vat compliance')) return 'legal';
+  if (v.includes('anthropic') || v.includes('openai') || v.includes('azure') || v.includes('deepgram') || v.includes('elevenlabs') || v.includes('twilio') || v.includes('pump') || v.includes('google') || v.includes('gemini') || v.includes('neon') || v.includes('chronosphere') || v.includes('nango') || v.includes('baseten')) return 'cogs';
+  if (v.includes('brex inc') || v.includes('ramp card')) return 'card_payments';
+  if (v.includes('montgomery') || v.includes('supervisor') || v.includes('creators corner') || v.includes('pianta') || v.includes('martin sign') || v.includes('linkedin') || v.includes('nooks')) return 'sm';
+  if (v.includes('prizm') || v.includes('execcatalyst') || v.includes('candidate labs') || v.includes('launch search') || v.includes('artefact') || v.includes('comb consulting') || v.includes('true capital') || v.includes('talent by design')) return 'recruiting';
+  if (v.includes('hogan lovells') || v.includes('cti iii') || v.includes('vat compliance') || v.includes('presidio legal') || v.includes('silicon counsel')) return 'legal';
   if (v.includes('deel')) return 'deel';
-  if (v.includes('navan') || v.includes('121 silicon')) return 'hre';
-  if (v.includes('true capital') || v.includes('landlord')) return 'rent';
-  if (v.includes('kitchens') || v.includes('anrok') || v.includes('franchise tax') || v.includes('nys dtf') || v.includes('intuit') || v.includes('cbf')) return 'ga';
+  if (v.includes('navan') || v.includes('121 silicon') || v.includes('equinox') || v.includes('human interest') || v.includes('kitchens') || v.includes('reimbursement')) return 'hre';
+  if (v.includes('landlord')) return 'rent';
+  if (v.includes('anrok') || v.includes('franchise tax') || v.includes('nys dtf') || v.includes('intuit') || v.includes('cbf') || v.includes('382 communications')) return 'ga';
   if (v.includes('versaconnect') || v.includes('unityai') || v.includes('reinform') || v.includes('alto pharmacy') || v.includes('monday.com')) return 'ar_collections';
   return 'unmatched';
 };
