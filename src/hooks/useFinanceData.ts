@@ -500,7 +500,7 @@ export const useWeeklyReportState = () =>
         .eq("week_start_date", wk)
         .maybeSingle();
       if (error) throw error;
-      return (data ?? null) as WeeklyReportState | null;
+      return (data ?? null) as unknown as WeeklyReportState | null;
     },
   });
 
