@@ -509,7 +509,14 @@ const TransactionImportTab = () => {
               <Button variant="ghost" size="sm" onClick={resetPreview}>
                 <X className="mr-1 h-4 w-4" /> Clear
               </Button>
-              <Button onClick={apply} disabled={importMut.isPending || summary.confirmed === 0}>
+              <Button
+                onClick={apply}
+                disabled={
+                  importMut.isPending ||
+                  summary.confirmed === 0 ||
+                  (recon.status === "mismatch" && !reconAck)
+                }
+              >
                 Import {summary.confirmed} transactions
               </Button>
             </div>
