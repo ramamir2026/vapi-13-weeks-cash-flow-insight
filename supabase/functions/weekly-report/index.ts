@@ -687,9 +687,29 @@ Deno.serve(async (req: Request) => {
       if (!emailResult.ok) deliveryError = `${slackResult.error}; ${emailResult.error}`;
     }
 
+    if (deliveredVia !== "none") {
+      try {
+        await supabase
+          .from("weekly_report_state")
+          .upsert(
+            {
+              week_start_date: monday,
+              finalized: true,
+              finalized_at: state?.finalized ? undefined : new Date().toISOString(),
+              sent_at: new Date().toISOString(),
+              sent_via: deliveredVia,
+            },
+            { onConflict: "week_start_date" },
+          );
+      } catch (e) {
+        console.error("Failed to record weekly_report_state sent_at", e);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: deliveredVia !== "none",
+
         delivered_via: deliveredVia,
         snapshot_id: snap?.snapshotId ?? null,
         snapshot_label: snap?.label ?? null,
