@@ -452,9 +452,56 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {f.recon.status === "ok" ? (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-[hsl(var(--success))]/40 text-[10px] text-[hsl(var(--success))]"
+                            >
+                              <CheckCircle2 className="h-3 w-3" /> ties
+                            </Badge>
+                          ) : f.recon.status === "mismatch" ? (
+                            <div className="flex flex-col gap-1">
+                              <Badge
+                                variant="outline"
+                                className={cn("gap-1 text-[10px]", warnBorder, warnText)}
+                                title={f.recon.message}
+                              >
+                                <AlertCircle className="h-3 w-3" />
+                                Δ{" "}
+                                {(f.recon.diff ?? 0).toLocaleString("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                  maximumFractionDigits: 0,
+                                })}
+                              </Badge>
+                              <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Checkbox
+                                  checked={f.reconAck}
+                                  onCheckedChange={(c) =>
+                                    updateFile(f.id, { reconAck: Boolean(c) })
+                                  }
+                                />
+                                Reviewed
+                              </label>
+                            </div>
+                          ) : (
+                            <span
+                              className="text-[10px] text-muted-foreground"
+                              title={f.recon.message}
+                            >
+                              {f.recon.status === "no_balance"
+                                ? "no balance col"
+                                : "partial coverage"}
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Checkbox
                             checked={f.confirmed}
+                            disabled={
+                              f.recon.status === "mismatch" && !f.reconAck
+                            }
                             onCheckedChange={(c) =>
                               updateFile(f.id, { confirmed: Boolean(c) })
                             }
