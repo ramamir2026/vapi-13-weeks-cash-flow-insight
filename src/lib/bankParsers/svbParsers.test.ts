@@ -64,26 +64,35 @@ describe("parseSvbMoneyMarketCsv (sweep report)", () => {
     expect(rows.every((r) => r.bank_source === "svb_money_market")).toBe(true);
   });
 
-  it("emits null balances when no anchor is provided (never fabricates from zero)", () => {
+  it("money market requires an anchor — no-anchor yields null balances on every row", () => {
     const rows = parseSvbMoneyMarketCsv(sweepSample);
+    // No-anchor must not drop rows — only blank the balance column.
+    expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.balance === null)).toBe(true);
+    expect(rows.map((r) => r.amount)).toEqual([1000000, -250000, 50000]);
+    expect(rows.every((r) => !!r.vendor)).toBe(true);
   });
 
-  it("derives per-row balances chronologically from the anchor", () => {
-    const rows = parseSvbMoneyMarketCsv(sweepSample, {
+  it("anchored balance applies sweeps forward and leaves pre-anchor rows null", () => {
+    const extended = `Date,Transaction,Sweep Account,Sweep Product,Amount
+2026-05-12,Sweep In,1234,Heritage MMA,1000000.00
+2026-05-13,Sweep Out,1234,Heritage MMA,-250000.00
+2026-05-14,Sweep In,1234,Heritage MMA,50000.00
+2026-05-15,Sweep In,1234,Heritage MMA,25000.00
+`;
+    const rows = parseSvbMoneyMarketCsv(extended, {
       date: "2026-05-13",
       balance: 1_000_000,
     });
-    // 2026-05-12 (before anchor) and 2026-05-13 (== anchor.date) → null,
-    // already reflected in the anchor balance.
-    const r12 = rows.find((r) => r.date === "2026-05-12")!;
-    const r13 = rows.find((r) => r.date === "2026-05-13")!;
-    const r14 = rows.find((r) => r.date === "2026-05-14")!;
-    expect(r12.balance).toBeNull();
-    expect(r13.balance).toBeNull();
-    // 2026-05-14 sweep-in of +50,000 → 1,050,000.
-    expect(r14.balance).toBe(1_050_000);
+    const byDate = Object.fromEntries(rows.map((r) => [r.date, r]));
+    // Strictly before anchor and the anchor row itself: null (anchor already reflects them).
+    expect(byDate["2026-05-12"].balance).toBeNull();
+    expect(byDate["2026-05-13"].balance).toBeNull();
+    // Post-anchor sweeps accumulate forward.
+    expect(byDate["2026-05-14"].balance).toBe(1_050_000);
+    expect(byDate["2026-05-15"].balance).toBe(1_075_000);
   });
+
 
   it("uses Transaction as vendor when present", () => {
     const rows = parseSvbMoneyMarketCsv(sweepSample);

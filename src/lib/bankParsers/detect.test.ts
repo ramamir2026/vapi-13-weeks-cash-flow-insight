@@ -89,6 +89,29 @@ describe("detectAndParse — content-based detection", () => {
     expect(r.source).toBe("ramp_treasury");
   });
 
+  it("Ramp Transfers signature (Type/From/To/Amount/Date) → ramp_checking via parseRampTransfersCsv", () => {
+    const rampTransfers = `Type,From,To,Amount,Date,Status,Remark
+Transfer,Checking Account,Anthropic,-1234.56,2026-05-12,Posted,API usage`;
+    const r = detectAndParse(rampTransfers, "ramp_transfers_may.csv");
+    expect(r.source).toBe("ramp_checking");
+    expect(r.confidence).toBe("high");
+    expect(r.warnings.join(" ")).toMatch(/Ramp Transfers header/i);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0]).toMatchObject({
+      amount: -1234.56,
+      balance: null, // proves parseRampTransfersCsv ran (it never emits balances)
+      bank_source: "ramp_checking",
+    });
+    expect(r.rows[0].vendor).toMatch(/Anthropic/i);
+  });
+
+  it("Ramp Transfers signature + treasury filename → ramp_treasury", () => {
+    const rampTransfers = `Type,From,To,Amount,Date,Status,Remark
+Transfer,Investment Account,Vendor X,-500.00,2026-05-12,Posted,`;
+    const r = detectAndParse(rampTransfers, "ramp_treasury_transfers.csv");
+    expect(r.source).toBe("ramp_treasury");
+  });
+
   it("Generic Date/Description/Amount/Balance + stripe filename → stripe", () => {
     const r = detectAndParse(stripe, "stripe_payouts.csv");
     expect(r.source).toBe("stripe");
