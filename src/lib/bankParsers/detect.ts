@@ -95,6 +95,7 @@ type Sig =
   | "svb_bai"
   | "svb_sweep"
   | "ramp"
+  | "ramp_transfers"
   | "generic_credit_debit"
   | "generic_desc_amt_bal"
   | "generic_desc_amt"
