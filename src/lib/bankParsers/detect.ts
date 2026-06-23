@@ -128,6 +128,9 @@ const classifyHeader = (cols: string[]): Sig => {
   }
   // SVB Money Market Sweep: Sweep Account + Sweep Product
   if (hasAll(cols, ["sweepaccount", "sweepproduct"])) return "svb_sweep";
+  // Ramp Transfers (Business Accounts → Transfers): From + To + Amount + Date.
+  // Check BEFORE the standard Ramp signature.
+  if (isRampTransfersHeader(cols)) return "ramp_transfers";
   // Ramp: Signed Transaction Amount + Detailed Transaction Type
   if (hasAll(cols, ["signedtransactionamount", "detailedtransactiontype"])) return "ramp";
   // Generic shapes (used by Stripe / legacy SVB checking CSVs).
