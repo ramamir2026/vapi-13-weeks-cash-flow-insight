@@ -213,7 +213,7 @@ const RULES: Array<{ keys: string[]; category: string }> = [
   { keys: ["versaconnect", "unityai", "reinform", "alto pharmacy", "monday.com"], category: "ar_collections" },
 ];
 
-export const autoCategorize = (vendor: string, _source: BankSource): string => {
+export const autoCategorize = (vendor: string, _source: BankSource, _note: string = ""): string => {
   const v = vendor.toLowerCase();
   if (v.includes('sweep') || v.includes('transfer to') || v.includes('transfer from') || v.includes('brex treasury')) return 'zba_sweep';
   if (v.includes('sequoia one')) return 'payroll';
