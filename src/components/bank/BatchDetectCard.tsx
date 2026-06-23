@@ -37,6 +37,7 @@ import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useAssumptions } from "@/hooks/useFinanceData";
 import { ASSUMPTION_KEY_TO_BANK_SOURCE } from "@/lib/accounts";
 import { ingestFile } from "@/lib/ingest";
 
