@@ -22,8 +22,9 @@ export class ArCsvParseError extends Error {
 }
 
 const FORMAT_ERROR =
-  "This does not look like a QuickBooks A/R Aging Summary. " +
-  "Please export from Reports → Aging → A/R Aging Summary in QuickBooks.";
+  "This does not look like an A/R Aging Summary. " +
+  "Please export from Reports → Aging → A/R Aging Summary in QuickBooks, " +
+  "or the A/R Aging report in Rillet.";
 
 // ----- Aging bucket definitions ---------------------------------------------
 
@@ -37,44 +38,52 @@ type BucketDef = {
   expectedWeek: number; // deterministic per QuickBooks A/R Aging spec
 };
 
-// Per spec:
-//   CURRENT  → 90%, W1
-//   1-30     → 90%, W2
-//   31-60    → 75%, W4
-//   61-90    → 50%, W7
-//   91+      → 20%, W10
+// Per collections policy:
+//   CURRENT  → 100%, W1
+//   1-30     → 90%,  W2
+//   31-60    → 75%,  W4
+//   61-90    → 60%,  W7
+//   91+      → 30%,  W10
 const BUCKETS: Record<BucketKey, BucketDef> = {
-  current:  { key: "current",  label: "Current", representativeDays: 0,   probability: 0.9,  expectedWeek: 1 },
+  current:  { key: "current",  label: "Current", representativeDays: 0,   probability: 1.0,  expectedWeek: 1 },
   b1_30:    { key: "b1_30",    label: "1-30",    representativeDays: 15,  probability: 0.9,  expectedWeek: 2 },
   b31_60:   { key: "b31_60",   label: "31-60",   representativeDays: 45,  probability: 0.75, expectedWeek: 4 },
-  b61_90:   { key: "b61_90",   label: "61-90",   representativeDays: 75,  probability: 0.5,  expectedWeek: 7 },
-  b91_plus: { key: "b91_plus", label: "91+",     representativeDays: 120, probability: 0.2,  expectedWeek: 10 },
+  b61_90:   { key: "b61_90",   label: "61-90",   representativeDays: 75,  probability: 0.6,  expectedWeek: 7 },
+  b91_plus: { key: "b91_plus", label: "91+",     representativeDays: 120, probability: 0.3,  expectedWeek: 10 },
 };
 
 export const probabilityForAging = (days: number): number => {
+  if (days <= 0) return 1.0;
   if (days <= 30) return 0.9;
   if (days <= 60) return 0.75;
-  if (days <= 90) return 0.5;
-  return 0.2;
+  if (days <= 90) return 0.6;
+  return 0.3;
 };
 
 // ----- Header matching ------------------------------------------------------
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-// Map a normalized header cell → bucket key. Handles common QuickBooks variants.
+// Map a normalized header cell → bucket key. Handles common QuickBooks and
+// Rillet variants (e.g. "1-30 days", "90+ days", "Aging Current").
 const matchBucketHeader = (raw: string): BucketKey | null => {
-  const n = norm(raw);
+  let n = norm(raw);
+  if (!n) return null;
+  // Rillet affixes: "Aging Current" → "current"; "1-30 days" → "130".
+  n = n.replace(/^aging/, "");
+  n = n.replace(/days$/, "");
   if (!n) return null;
   if (n === "current" || n === "notdue" || n === "030") return "current";
   if (n === "130" || n === "1to30" || n === "0130") return "b1_30";
   if (n === "3160" || n === "31to60") return "b31_60";
   if (n === "6190" || n === "61to90") return "b61_90";
-  // 91+, >90, over 90, 91 and over, 91andover, 91plus, greaterthan90
+  // 91+, >90, over 90, 91 and over, 91andover, 91plus, greaterthan90,
+  // and Rillet's "90+ days" which normalizes to "90" after stripping "days".
   if (
     n === "91andover" ||
     n === "91plus" ||
     n === "91" ||
+    n === "90" ||
     n === "over90" ||
     n === "greaterthan90" ||
     n === "morethan90" ||
