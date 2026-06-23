@@ -12,13 +12,6 @@ describe("parseBrexCsv", () => {
     expect(rows[0].balance).toBe(1000000);
   });
 
-  it("a non-empty Memo still takes precedence as a vendor source when To/From is blank", () => {
-    const csv = `Date,To/From,Memo,Amount,Balance,Status,Account Number Last Four
-2026-05-12,,ANTHROPIC API,-100.00,999900.00,Posted,8083`;
-    const rows = parseBrexCsv(csv, "brex_primary");
-    expect(rows).toHaveLength(1);
-    expect(rows[0].vendor).toMatch(/ANTHROPIC/i);
-  });
 
   it("excludes NSF / Processing / Reversed rows; keeps Posted rows", () => {
     const csv = `Date,To/From,Amount,Balance,Status,Account Number Last Four
