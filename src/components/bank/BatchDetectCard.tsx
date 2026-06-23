@@ -184,6 +184,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
       }
       const result = detectAndParse(csvForDetect, file.name, accounts, mmAnchor);
       const score = CONFIDENCE_SCORE[result.confidence];
+      const recon = reconcileParsedRows(result.rows, result.source);
       staged.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         filename: file.name,
@@ -193,9 +194,12 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         score,
         warnings: result.warnings,
         rows: result.rows,
-        confirmed: score >= AUTO_ACCEPT_THRESHOLD,
+        // Auto-accept only when confidence is high AND reconciliation is not a mismatch.
+        confirmed: score >= AUTO_ACCEPT_THRESHOLD && recon.status !== "mismatch",
         derivedBalance: result.derivedBalance,
         balanceAsOf: result.balanceAsOf,
+        recon,
+        reconAck: false,
       });
     }
     if (staged.length) {
