@@ -38,25 +38,26 @@ type BucketDef = {
   expectedWeek: number; // deterministic per QuickBooks A/R Aging spec
 };
 
-// Per spec:
-//   CURRENT  → 90%, W1
-//   1-30     → 90%, W2
-//   31-60    → 75%, W4
-//   61-90    → 50%, W7
-//   91+      → 20%, W10
+// Per collections policy:
+//   CURRENT  → 100%, W1
+//   1-30     → 90%,  W2
+//   31-60    → 75%,  W4
+//   61-90    → 60%,  W7
+//   91+      → 30%,  W10
 const BUCKETS: Record<BucketKey, BucketDef> = {
-  current:  { key: "current",  label: "Current", representativeDays: 0,   probability: 0.9,  expectedWeek: 1 },
+  current:  { key: "current",  label: "Current", representativeDays: 0,   probability: 1.0,  expectedWeek: 1 },
   b1_30:    { key: "b1_30",    label: "1-30",    representativeDays: 15,  probability: 0.9,  expectedWeek: 2 },
   b31_60:   { key: "b31_60",   label: "31-60",   representativeDays: 45,  probability: 0.75, expectedWeek: 4 },
-  b61_90:   { key: "b61_90",   label: "61-90",   representativeDays: 75,  probability: 0.5,  expectedWeek: 7 },
-  b91_plus: { key: "b91_plus", label: "91+",     representativeDays: 120, probability: 0.2,  expectedWeek: 10 },
+  b61_90:   { key: "b61_90",   label: "61-90",   representativeDays: 75,  probability: 0.6,  expectedWeek: 7 },
+  b91_plus: { key: "b91_plus", label: "91+",     representativeDays: 120, probability: 0.3,  expectedWeek: 10 },
 };
 
 export const probabilityForAging = (days: number): number => {
+  if (days <= 0) return 1.0;
   if (days <= 30) return 0.9;
   if (days <= 60) return 0.75;
-  if (days <= 90) return 0.5;
-  return 0.2;
+  if (days <= 90) return 0.6;
+  return 0.3;
 };
 
 // ----- Header matching ------------------------------------------------------
