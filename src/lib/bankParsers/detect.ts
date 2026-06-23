@@ -21,6 +21,7 @@ import { parseBrexCsv } from "./brex";
 import { parseStripeCsv } from "./stripe";
 import { parseSvbCheckingCsv } from "./svbChecking";
 import { parseSvbMoneyMarketCsv } from "./svbMoneyMarket";
+import { parseRampTransfersCsv, isRampTransfersHeader } from "./rampTransfers";
 import { deriveOpeningBalance } from "./deriveBalance";
 import {
   BankSource,
