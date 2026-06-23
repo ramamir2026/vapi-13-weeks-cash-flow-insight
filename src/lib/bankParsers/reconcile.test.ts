@@ -81,17 +81,18 @@ describe("reconcileParsedRows", () => {
     // 2020–2024: deliberately inconsistent (balances don't tie to amounts).
     const oldRows: ParsedTxn[] = [];
     for (let y = 2020; y <= 2024; y++) {
-      oldRows.push(mk(`${y}-01-15`, 1_000, 500_000 + y * 1_000));
-      oldRows.push(mk(`${y}-06-15`, -2_000, 480_000 + y * 1_000));
+      for (let m = 1; m <= 12; m++) {
+        const mm = m.toString().padStart(2, "0");
+        oldRows.push(mk(`${y}-${mm}-15`, 1_000, 500_000 + y * 1_000 + m));
+      }
     }
-    // Recent 90-day window: clean ledger.
-    const recent = buildLedger("2026-05-01", 1_500_000, [
-      250, -1_000, 500, -750, 1_200, -300, 75, -100, 400, -50,
-    ]);
+    // Recent 90-day window: 60 clean daily rows (enough to bypass the 50-row
+    // fallback so the window stays in 2026 only).
+    const deltas = Array.from({ length: 60 }, (_, i) => (i % 2 === 0 ? 250 : -200));
+    const recent = buildLedger("2026-04-15", 1_500_000, deltas);
     const r = reconcileParsedRows([...oldRows, ...recent], "brex_primary");
     expect(r.status).toBe("ok");
-    expect(r.windowRowCount).toBeLessThan(oldRows.length + recent.length);
-    // Window must start in 2026 (within ~90 days of latest row).
+    expect(r.windowRowCount).toBe(recent.length);
     expect(r.windowStartDate?.startsWith("2026")).toBe(true);
   });
 
