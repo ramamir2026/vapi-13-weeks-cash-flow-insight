@@ -77,29 +77,119 @@ export const buildAssumptionMap = (
   return map;
 };
 
-// Vendor week positions (1-indexed weeks per spec)
-const COGS_VENDOR_WEEKS: Record<string, number[]> = {
-  cogs_anthropic:  [5, 9],
-  cogs_azure:      [1, 5, 10],
-  cogs_openai:     [1, 5, 9],
-  cogs_elevenlabs: [1, 6, 10],
-  cogs_gemini:     [3, 7, 11],
-  cogs_neon:       [3, 7, 11],
-  cogs_pump_aws:   [3, 7, 11],
-  cogs_twilio:     [4, 8, 12],
+// ============ Calendar placement helpers ============
+// Sat/Sun -> next Monday.
+const adjustForward = (d: Date): Date => {
+  const dow = d.getDay();
+  if (dow === 6) return addDays(d, 2);
+  if (dow === 0) return addDays(d, 1);
+  return d;
 };
 
-const COGS_LABELS: Record<string, string> = {
-  cogs_anthropic: "Anthropic",
-  cogs_azure: "Azure",
-  cogs_openai: "OpenAI",
-  cogs_elevenlabs: "ElevenLabs",
-  cogs_gemini: "Google / Gemini",
-  cogs_neon: "Neon",
-  cogs_pump_aws: "Pump/AWS",
-  cogs_twilio: "Twilio",
-  cogs_other: "Other COGS",
+// Payroll convention: Sat -> previous Friday; Sun -> next Monday.
+const adjustPayroll = (d: Date): Date => {
+  const dow = d.getDay();
+  if (dow === 6) return addDays(d, -1);
+  if (dow === 0) return addDays(d, 1);
+  return d;
 };
+
+// 0-based forecast week whose Mon..Sun span contains `date`, else -1.
+const weekIndexOf = (date: Date, weekStarts: Date[]): number => {
+  const t = date.getTime();
+  for (let i = 0; i < weekStarts.length; i++) {
+    const s = weekStarts[i].getTime();
+    const e = s + 7 * 86_400_000;
+    if (t >= s && t < e) return i;
+  }
+  return -1;
+};
+
+const monthsInWindow = (weekStarts: Date[]): Array<{ y: number; m: number }> => {
+  const seen = new Set<string>();
+  const out: Array<{ y: number; m: number }> = [];
+  for (const ws of weekStarts) {
+    for (let d = 0; d < 7; d++) {
+      const dt = addDays(ws, d);
+      const k = `${dt.getFullYear()}-${dt.getMonth()}`;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push({ y: dt.getFullYear(), m: dt.getMonth() });
+      }
+    }
+  }
+  return out;
+};
+
+interface Placement {
+  weekIdx: number;
+  ordinal: number; // 0-based in-window occurrence; growth exponent
+}
+
+// For each month in the window, adjust(new Date(y, m, payDay)); keep only
+// adjusted dates that fall inside the window; thin by cadence anchored to
+// the first in-window occurrence (cadenceMonths === 1 keeps every month).
+const paymentPlacements = (
+  payDay: number,
+  adjust: (d: Date) => Date,
+  weekStarts: Date[],
+  cadenceMonths = 1,
+): Placement[] => {
+  const months = monthsInWindow(weekStarts);
+  const hits: Array<{ monthAbs: number; weekIdx: number }> = [];
+  for (const { y, m } of months) {
+    const adj = adjust(new Date(y, m, payDay));
+    const wi = weekIndexOf(adj, weekStarts);
+    if (wi >= 0) hits.push({ monthAbs: y * 12 + m, weekIdx: wi });
+  }
+  if (!hits.length) return [];
+  const anchor = hits[0].monthAbs;
+  const out: Placement[] = [];
+  for (const h of hits) {
+    const delta = h.monthAbs - anchor;
+    if (delta % cadenceMonths !== 0) continue;
+    out.push({ weekIdx: h.weekIdx, ordinal: delta / cadenceMonths });
+  }
+  return out;
+};
+
+// Build Monday-aligned week starts for a window. Exported so callers
+// (e.g. FutureHires) can align with the same calendar the forecast uses.
+export const buildWeekStartDates = (startDate: Date | undefined, weeksCount = 13): Date[] => {
+  const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
+  const out: Date[] = [];
+  for (let i = 0; i < weeksCount; i++) out.push(addDays(start, i * 7));
+  return out;
+};
+
+// Calendar payroll week indices for a window (12th + 27th, weekend-adjusted),
+// sorted ascending. Exported so hire-override mappings align with base payroll.
+export const payrollWeekIndices = (weekStarts: Date[]): number[] => {
+  const placements = [
+    ...paymentPlacements(12, adjustPayroll, weekStarts),
+    ...paymentPlacements(27, adjustPayroll, weekStarts),
+  ];
+  return [...new Set(placements.map((p) => p.weekIdx))].sort((a, b) => a - b);
+};
+
+// ============ COGS vendor config (placed by pay-day) ============
+interface CogsVendor {
+  key: string;
+  label: string;
+  payDay: number;
+  growth?: number;        // monthly compound, default 0
+  cadenceMonths?: number; // default 1
+}
+const COGS_VENDORS: CogsVendor[] = [
+  { key: "cogs_pump_aws", label: "Pump/AWS", payDay: 15 },
+  { key: "cogs_anthropic", label: "Anthropic", payDay: 1 },
+  { key: "cogs_azure", label: "Azure", payDay: 5, growth: 0.07 },
+  { key: "cogs_openai", label: "OpenAI", payDay: 1, growth: 0.03 },
+  { key: "cogs_deepgram", label: "Deepgram", payDay: 2, cadenceMonths: 3 },
+  { key: "cogs_gemini", label: "Google / Gemini", payDay: 21 },
+  { key: "cogs_twilio", label: "Twilio", payDay: 24 },
+  { key: "cogs_elevenlabs", label: "ElevenLabs", payDay: 15 },
+];
 
 const OPEX_KEYS = [
   "opex_sm",
@@ -120,11 +210,6 @@ const OPEX_LABELS: Record<string, string> = {
   opex_recruiting: "Recruiting",
   opex_ga: "G&A",
 };
-
-const PAYROLL_WEEKS = new Set([2, 4, 6, 8, 10, 12]);
-
-const COGS_GROWTH_KEYS = new Set(["cogs_anthropic", "cogs_azure"]);
-const COGS_MONTHLY_GROWTH = 0.07;
 
 const WEEKS_PER_MONTH = 4.333;
 
@@ -174,32 +259,42 @@ export const buildForecast = (
   const rentMaySep = assumptions["rent_may_sep"] ?? 0;
   const rentOctPlus = assumptions["rent_oct_plus"] ?? 0;
 
-  const brexByWeek: Record<number, number> = {
-    5: assumptions["brex_w2"] ?? 0,
-    9: assumptions["brex_w7"] ?? 0,
-  };
-
   // Pre-compute week start dates
   const weekStartDates: Date[] = [];
   for (let i = 0; i < weeksCount; i++) weekStartDates.push(addDays(start, i * 7));
 
+  // Calendar payroll weeks (12th + 27th, weekend-adjusted).
+  const payrollWeekSet = new Set(payrollWeekIndices(weekStartDates));
+
+  // First-of-month placements drive both card payments and rent.
+  const firstOfMonthPlacements = paymentPlacements(1, adjustForward, weekStartDates);
+  const cardAmounts = [
+    assumptions["brex_w2"] ?? 0,
+    assumptions["brex_w7"] ?? 0,
+    assumptions["brex_w11"] ?? 0,
+  ];
+  const brexByWeekIdx: Record<number, number> = {};
+  const rentRow = new Array(weeksCount).fill(0);
+  firstOfMonthPlacements.forEach((p, idx) => {
+    if (idx < cardAmounts.length) {
+      brexByWeekIdx[p.weekIdx] = (brexByWeekIdx[p.weekIdx] ?? 0) + cardAmounts[idx];
+    }
+    const monthHere = weekStartDates[p.weekIdx].getMonth();
+    rentRow[p.weekIdx] = monthHere >= 9 ? rentOctPlus : rentMaySep;
+  });
+
   // ============ COGS rows ============
   const cogsRows: VendorRow[] = [];
-  for (const key of Object.keys(COGS_VENDOR_WEEKS)) {
-    const monthlyBase = assumptions[key] ?? 0;
-    const positions = COGS_VENDOR_WEEKS[key];
+  for (const v of COGS_VENDORS) {
+    const base = assumptions[v.key] ?? 0;
     const arr = new Array(weeksCount).fill(0);
-    for (const w of positions) {
-      const idx = w - 1;
-      if (idx >= 0 && idx < weeksCount) {
-        const monthIdx = Math.floor(idx / WEEKS_PER_MONTH);
-        const monthly = COGS_GROWTH_KEYS.has(key)
-          ? monthlyBase * Math.pow(1 + COGS_MONTHLY_GROWTH, monthIdx)
-          : monthlyBase;
-        arr[idx] = monthly;
+    if (base > 0) {
+      const growth = v.growth ?? 0;
+      for (const p of paymentPlacements(v.payDay, adjustForward, weekStartDates, v.cadenceMonths ?? 1)) {
+        arr[p.weekIdx] += base * Math.pow(1 + growth, p.ordinal);
       }
     }
-    cogsRows.push({ key, label: COGS_LABELS[key], weeks: arr });
+    cogsRows.push({ key: v.key, label: v.label, weeks: arr });
   }
   // Other COGS smoothed
   {
@@ -207,7 +302,7 @@ export const buildForecast = (
     const perWeek = monthly / WEEKS_PER_MONTH;
     cogsRows.push({
       key: "cogs_other",
-      label: COGS_LABELS["cogs_other"],
+      label: "Other COGS",
       weeks: new Array(weeksCount).fill(perWeek),
     });
   }
@@ -223,16 +318,6 @@ export const buildForecast = (
     }
     return { key, label: OPEX_LABELS[key], weeks: arr };
   });
-
-  // ============ Rent row ============
-  // Rent drops at W2, W7, W11 (May 1, June 1, July 1 lease payments)
-  const rentRow = new Array(weeksCount).fill(0);
-  const rentPaymentIndices = [4, 8];
-  for (const idx of rentPaymentIndices) {
-    if (idx >= weeksCount) continue;
-    const m = weekStartDates[idx].getMonth();
-    rentRow[idx] = m >= 9 ? rentOctPlus : rentMaySep;
-  }
 
   // ============ A/R collections per week ============
   let arPerWeek: number[];
@@ -259,7 +344,6 @@ export const buildForecast = (
   for (let i = 0; i < weeksCount; i++) {
     const weekStart = weekStartDates[i];
     const weekEnd = addDays(weekStart, 6);
-    const weekNum = i + 1; // 1-indexed
 
     const monthIndex = Math.floor(i / WEEKS_PER_MONTH);
     const stripeRevenue = stripeDaily * 5 * Math.pow(1 + stripeGrowthMonthly, monthIndex);
@@ -268,7 +352,7 @@ export const buildForecast = (
 
     // Payroll
     let payroll = 0;
-    if (PAYROLL_WEEKS.has(weekNum)) {
+    if (payrollWeekSet.has(i)) {
       payroll = payrollSemi + payrollFee;
       if (hireOverride?.weeks?.[i] != null) {
         payroll += Number(hireOverride.weeks[i]) || 0;
@@ -282,7 +366,8 @@ export const buildForecast = (
     const cogsTotal = cogsRows.reduce((s, r) => s + r.weeks[i], 0);
 
     // Brex
-    const brexCard = brexByWeek[weekNum] ?? 0;
+    const brexCard = brexByWeekIdx[i] ?? 0;
+
 
     // OpEx total
     const opexTotal = opexRows.reduce((s, r) => s + r.weeks[i], 0);

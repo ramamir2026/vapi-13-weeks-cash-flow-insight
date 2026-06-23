@@ -31,10 +31,9 @@ const toDate = (iso: string): Date => {
 /**
  * Per-spec formula:
  *   MAX(0, (period_end − MAX(start_date, period_start) + 1) / period_days)
- *   × (annual_salary / 26)
+ *   × (annual_salary / 24)
  *
- * fraction is capped at 1 by the formula (eligibleDays > period.days only when
- * start_date precedes period_start, in which case (end − start + 1) / days = 1).
+ * Divisor is /24 (semi-monthly) to match forecast.ts.
  */
 export const periodCellAmount = (
   startDateIso: string | null | undefined,
@@ -48,16 +47,27 @@ export const periodCellAmount = (
   const effectiveStart = Math.max(start, periodStart);
   const eligibleDays = Math.max(0, (periodEnd - effectiveStart) / dayMs + 1);
   const fraction = Math.min(eligibleDays / period.days, 1);
-  return fraction * (annualSalary / 26);
+  return fraction * (annualSalary / 24);
 };
 
 /**
- * Map period totals to a 13-element forecast weeks array (zeros elsewhere).
+ * Map period totals to a forecast-weeks array.
+ *
+ * `payrollWeekIdxs` is the ordered list of 0-based forecast week indices that
+ * receive payroll for the current window (derived from forecast.payrollWeekIndices).
+ * P1..Pn map to those indices by position; periods past the window are dropped.
+ * If omitted, falls back to each period's static weekIndex (legacy behavior).
  */
-export const periodsToWeeks = (periodTotals: Record<string, number>): number[] => {
-  const weeks = new Array(13).fill(0);
-  for (const p of PAYROLL_PERIODS) {
-    weeks[p.weekIndex] = periodTotals[p.key] ?? 0;
-  }
+export const periodsToWeeks = (
+  periodTotals: Record<string, number>,
+  payrollWeekIdxs?: number[],
+  weeksCount = 13,
+): number[] => {
+  const weeks = new Array(weeksCount).fill(0);
+  PAYROLL_PERIODS.forEach((p, i) => {
+    const target = payrollWeekIdxs ? payrollWeekIdxs[i] : p.weekIndex;
+    if (target == null || target < 0 || target >= weeksCount) return;
+    weeks[target] = periodTotals[p.key] ?? 0;
+  });
   return weeks;
 };

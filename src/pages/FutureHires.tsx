@@ -31,6 +31,7 @@ import {
   periodCellAmount,
   periodsToWeeks,
 } from "@/lib/payrollPeriods";
+import { buildWeekStartDates, payrollWeekIndices } from "@/lib/forecast";
 import { setImportContext, useIsApprover, useOverrideImportLock } from "@/hooks/useControls";
 import { useAutoCheckChecklistItem } from "@/hooks/useBankData";
 import { useAuth } from "@/hooks/useAuth";
@@ -127,7 +128,8 @@ const FutureHires = () => {
   const { user } = useAuth();
 
   const handleApplyToModel = () => {
-    const weeks = periodsToWeeks(periodTotals);
+    const weekStarts = buildWeekStartDates(undefined, 13);
+    const weeks = periodsToWeeks(periodTotals, payrollWeekIndices(weekStarts), 13);
     const periods = PAYROLL_PERIODS.map((p) => ({
       key: p.key,
       total: periodTotals[p.key] ?? 0,
