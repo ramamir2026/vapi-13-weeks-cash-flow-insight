@@ -222,6 +222,14 @@ export interface HireOverride {
   weeks: number[]; // length = weeksCount, totals at payroll-week indices (W2/4/6/8/10/12)
 }
 
+// AP-aging override: per-vendor weekly dollars for W1..W5 (length 5).
+// `cogs_other` is NEVER driven from AP — it stays smoothed from assumptions.
+export interface ApOverride {
+  weeks_by_vendor: Record<string, number[]>;
+}
+
+const AP_OVERRIDE_HORIZON = 5;
+
 export const buildForecast = (
   assumptions: AssumptionMap,
   arEntries: ARForecastEntry[],
@@ -233,8 +241,10 @@ export const buildForecast = (
   // Assumption keys for active, non-restricted accounts (from accounts table).
   // Opening cash = sum of these. No hardcoded fallback — callers must pass the
   // list. If empty/undefined, falls back to the legacy single opening_cash_balance.
-  activeCashKeys?: string[]
+  activeCashKeys?: string[],
+  apOverride?: ApOverride | null,
 ): ForecastResult => {
+
   const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
 
   // Opening cash = sum of every active, non-restricted account's latest balance.
