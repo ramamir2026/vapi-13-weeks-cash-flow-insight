@@ -14,7 +14,7 @@ import {
 
 const HEADER_MAP: Record<
   string,
-  "date" | "vendor" | "amount" | "balance" | "status" | "last4"
+  "date" | "vendor" | "amount" | "balance" | "status" | "last4" | "note"
 > = {
   date: "date",
   postingdate: "date",
@@ -26,7 +26,9 @@ const HEADER_MAP: Record<
   merchant: "vendor",
   payee: "vendor",
   counterparty: "vendor",
-  memo: "vendor",
+  memo: "note",
+  externalmemo: "note",
+  note: "note",
   amount: "amount",
   amountusd: "amount",
   signedtransactionamount: "amount",
@@ -39,7 +41,22 @@ const HEADER_MAP: Record<
   last4: "last4",
 };
 
-const SKIP_STATUSES = new Set(["pending", "scheduled", "canceled", "cancelled", "failed"]);
+const SKIP_STATUSES = new Set([
+  "pending",
+  "scheduled",
+  "canceled",
+  "cancelled",
+  "failed",
+  "insufficientfunds",
+  "approvaldenied",
+  "declined",
+  "processing",
+  "reversed",
+  "returned",
+  "void",
+  "voided",
+  "error",
+]);
 
 export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] => {
   const text = normalizeText(rawText);
@@ -66,11 +83,15 @@ export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] =
     const rec: Record<string, string> = {};
     cols.forEach((val, idx) => {
       const k = mapping[idx];
-      if (k) rec[k] = val;
+      // First non-empty value wins — an empty Memo must not clobber a real To/From.
+      if (k && val !== undefined && val !== "" && rec[k] === undefined) {
+        rec[k] = val;
+      }
     });
 
     const date = toIsoDate(rec.date || "");
     const vendor = (rec.vendor || "").trim();
+    const note = (rec.note || "").trim();
     const amount = parseAmount(rec.amount || "0");
     if (!date || !vendor || amount === 0) continue;
     if (rec.status && SKIP_STATUSES.has(norm(rec.status))) continue;
@@ -81,7 +102,7 @@ export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] =
       vendor,
       amount,
       balance: rec.balance ? parseAmount(rec.balance) : null,
-      category: autoCategorize(vendor, source),
+      category: autoCategorize(vendor, source, note),
       bank_source: source,
     });
   }
