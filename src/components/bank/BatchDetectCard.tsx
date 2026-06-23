@@ -34,6 +34,7 @@ import {
   type ParsedTxn,
 } from "@/lib/bankParsers/types";
 import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
+import { reconcileParsedRows, type ReconciliationResult } from "@/lib/bankParsers/reconcile";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -90,6 +91,8 @@ interface StagedFile {
   confirmed: boolean;
   derivedBalance: number | null;
   balanceAsOf: string | null;
+  recon: ReconciliationResult;
+  reconAck: boolean;
 }
 
 const warnText = "text-[hsl(var(--warn-amber))]";
@@ -181,6 +184,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
       }
       const result = detectAndParse(csvForDetect, file.name, accounts, mmAnchor);
       const score = CONFIDENCE_SCORE[result.confidence];
+      const recon = reconcileParsedRows(result.rows, result.source);
       staged.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         filename: file.name,
@@ -190,9 +194,12 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         score,
         warnings: result.warnings,
         rows: result.rows,
-        confirmed: score >= AUTO_ACCEPT_THRESHOLD,
+        // Auto-accept only when confidence is high AND reconciliation is not a mismatch.
+        confirmed: score >= AUTO_ACCEPT_THRESHOLD && recon.status !== "mismatch",
         derivedBalance: result.derivedBalance,
         balanceAsOf: result.balanceAsOf,
+        recon,
+        reconAck: false,
       });
     }
     if (staged.length) {
@@ -219,8 +226,15 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
       fs.map((f) => {
         if (f.id !== id) return f;
         const next = { ...f, ...patch };
-        // Manual override → require explicit confirmation
-        if (patch.overrideSource && patch.overrideSource !== f.detectedSource) {
+        // Manual override → require explicit confirmation and recompute recon
+        // (status depends on source, e.g. MANUAL_BALANCE_SOURCES).
+        if (patch.overrideSource && patch.overrideSource !== f.overrideSource) {
+          next.confirmed = false;
+          next.recon = reconcileParsedRows(f.rows, patch.overrideSource);
+          next.reconAck = false;
+        }
+        // Hard gate: can't confirm while a mismatch is unreviewed.
+        if (next.recon.status === "mismatch" && !next.reconAck) {
           next.confirmed = false;
         }
         return next;
@@ -317,6 +331,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
                     <TableHead className="w-32">Confidence</TableHead>
                     <TableHead className="w-24 text-right">Rows</TableHead>
                     <TableHead className="w-44 text-right">Balance (as of)</TableHead>
+                    <TableHead className="w-40">Reconcile</TableHead>
                     <TableHead className="w-20 text-center">Confirm</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -437,9 +452,56 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {f.recon.status === "ok" ? (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-[hsl(var(--success))]/40 text-[10px] text-[hsl(var(--success))]"
+                            >
+                              <CheckCircle2 className="h-3 w-3" /> ties
+                            </Badge>
+                          ) : f.recon.status === "mismatch" ? (
+                            <div className="flex flex-col gap-1">
+                              <Badge
+                                variant="outline"
+                                className={cn("gap-1 text-[10px]", warnBorder, warnText)}
+                                title={f.recon.message}
+                              >
+                                <AlertCircle className="h-3 w-3" />
+                                Δ{" "}
+                                {(f.recon.diff ?? 0).toLocaleString("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                  maximumFractionDigits: 0,
+                                })}
+                              </Badge>
+                              <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Checkbox
+                                  checked={f.reconAck}
+                                  onCheckedChange={(c) =>
+                                    updateFile(f.id, { reconAck: Boolean(c) })
+                                  }
+                                />
+                                Reviewed
+                              </label>
+                            </div>
+                          ) : (
+                            <span
+                              className="text-[10px] text-muted-foreground"
+                              title={f.recon.message}
+                            >
+                              {f.recon.status === "no_balance"
+                                ? "no balance col"
+                                : "partial coverage"}
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Checkbox
                             checked={f.confirmed}
+                            disabled={
+                              f.recon.status === "mismatch" && !f.reconAck
+                            }
                             onCheckedChange={(c) =>
                               updateFile(f.id, { confirmed: Boolean(c) })
                             }

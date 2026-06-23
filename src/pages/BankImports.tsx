@@ -40,6 +40,8 @@ import {
   type ParsedTxn,
 } from "@/lib/bankParsers/types";
 import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
+import { reconcileParsedRows } from "@/lib/bankParsers/reconcile";
+import { ReconciliationBanner } from "@/components/bank/ReconciliationBanner";
 import { Input } from "@/components/ui/input";
 import {
   extractClosingBalanceFromCsv,
@@ -187,6 +189,7 @@ const TransactionImportTab = () => {
   const [confidence, setConfidence] = useState<"high" | "medium" | "low">("high");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [reconAck, setReconAck] = useState(false);
   const importMut = useImportBankTransactions();
   const uploadStatementMut = useUploadStatement();
   const upsertRule = useUpsertCategoryRule();
@@ -200,6 +203,7 @@ const TransactionImportTab = () => {
     setDetectedSource(null);
     setWarnings([]);
     setConfidence("high");
+    setReconAck(false);
   }, []);
 
   // SVB Money-Market anchor: known EOD balance at a known date. Stored as two
@@ -258,6 +262,7 @@ const TransactionImportTab = () => {
       setDetectedSource(result.source);
       setConfidence(result.confidence);
       setWarnings(result.warnings);
+      setReconAck(false);
       setRows(
         withRules.map((r) => ({
           ...r,
@@ -301,6 +306,11 @@ const TransactionImportTab = () => {
     }
     return { confirmed: confirmed.length, total: rows.length, unmatched, byCategory };
   }, [rows]);
+
+  const recon = useMemo(
+    () => reconcileParsedRows(rows, detectedSource ?? "brex_primary"),
+    [rows, detectedSource],
+  );
 
   const apply = async () => {
     const confirmed = rows.filter((r) => r.confirmed);
@@ -499,12 +509,28 @@ const TransactionImportTab = () => {
               <Button variant="ghost" size="sm" onClick={resetPreview}>
                 <X className="mr-1 h-4 w-4" /> Clear
               </Button>
-              <Button onClick={apply} disabled={importMut.isPending || summary.confirmed === 0}>
+              <Button
+                onClick={apply}
+                disabled={
+                  importMut.isPending ||
+                  summary.confirmed === 0 ||
+                  (recon.status === "mismatch" && !reconAck)
+                }
+              >
                 Import {summary.confirmed} transactions
               </Button>
             </div>
           </CardHeader>
           <CardContent>
+            {rows.length > 0 && (
+              <div className="mb-4">
+                <ReconciliationBanner
+                  recon={recon}
+                  ack={reconAck}
+                  onAckChange={setReconAck}
+                />
+              </div>
+            )}
             {warnings.length > 0 && (
               <div
                 className={cn(
