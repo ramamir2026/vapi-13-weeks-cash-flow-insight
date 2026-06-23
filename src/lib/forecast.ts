@@ -259,32 +259,42 @@ export const buildForecast = (
   const rentMaySep = assumptions["rent_may_sep"] ?? 0;
   const rentOctPlus = assumptions["rent_oct_plus"] ?? 0;
 
-  const brexByWeek: Record<number, number> = {
-    5: assumptions["brex_w2"] ?? 0,
-    9: assumptions["brex_w7"] ?? 0,
-  };
-
   // Pre-compute week start dates
   const weekStartDates: Date[] = [];
   for (let i = 0; i < weeksCount; i++) weekStartDates.push(addDays(start, i * 7));
 
+  // Calendar payroll weeks (12th + 27th, weekend-adjusted).
+  const payrollWeekSet = new Set(payrollWeekIndices(weekStartDates));
+
+  // First-of-month placements drive both card payments and rent.
+  const firstOfMonthPlacements = paymentPlacements(1, adjustForward, weekStartDates);
+  const cardAmounts = [
+    assumptions["brex_w2"] ?? 0,
+    assumptions["brex_w7"] ?? 0,
+    assumptions["brex_w11"] ?? 0,
+  ];
+  const brexByWeekIdx: Record<number, number> = {};
+  const rentRow = new Array(weeksCount).fill(0);
+  firstOfMonthPlacements.forEach((p, idx) => {
+    if (idx < cardAmounts.length) {
+      brexByWeekIdx[p.weekIdx] = (brexByWeekIdx[p.weekIdx] ?? 0) + cardAmounts[idx];
+    }
+    const monthHere = weekStartDates[p.weekIdx].getMonth();
+    rentRow[p.weekIdx] = monthHere >= 9 ? rentOctPlus : rentMaySep;
+  });
+
   // ============ COGS rows ============
   const cogsRows: VendorRow[] = [];
-  for (const key of Object.keys(COGS_VENDOR_WEEKS)) {
-    const monthlyBase = assumptions[key] ?? 0;
-    const positions = COGS_VENDOR_WEEKS[key];
+  for (const v of COGS_VENDORS) {
+    const base = assumptions[v.key] ?? 0;
     const arr = new Array(weeksCount).fill(0);
-    for (const w of positions) {
-      const idx = w - 1;
-      if (idx >= 0 && idx < weeksCount) {
-        const monthIdx = Math.floor(idx / WEEKS_PER_MONTH);
-        const monthly = COGS_GROWTH_KEYS.has(key)
-          ? monthlyBase * Math.pow(1 + COGS_MONTHLY_GROWTH, monthIdx)
-          : monthlyBase;
-        arr[idx] = monthly;
+    if (base > 0) {
+      const growth = v.growth ?? 0;
+      for (const p of paymentPlacements(v.payDay, adjustForward, weekStartDates, v.cadenceMonths ?? 1)) {
+        arr[p.weekIdx] += base * Math.pow(1 + growth, p.ordinal);
       }
     }
-    cogsRows.push({ key, label: COGS_LABELS[key], weeks: arr });
+    cogsRows.push({ key: v.key, label: v.label, weeks: arr });
   }
   // Other COGS smoothed
   {
@@ -292,7 +302,7 @@ export const buildForecast = (
     const perWeek = monthly / WEEKS_PER_MONTH;
     cogsRows.push({
       key: "cogs_other",
-      label: COGS_LABELS["cogs_other"],
+      label: "Other COGS",
       weeks: new Array(weeksCount).fill(perWeek),
     });
   }
@@ -308,16 +318,6 @@ export const buildForecast = (
     }
     return { key, label: OPEX_LABELS[key], weeks: arr };
   });
-
-  // ============ Rent row ============
-  // Rent drops at W2, W7, W11 (May 1, June 1, July 1 lease payments)
-  const rentRow = new Array(weeksCount).fill(0);
-  const rentPaymentIndices = [4, 8];
-  for (const idx of rentPaymentIndices) {
-    if (idx >= weeksCount) continue;
-    const m = weekStartDates[idx].getMonth();
-    rentRow[idx] = m >= 9 ? rentOctPlus : rentMaySep;
-  }
 
   // ============ A/R collections per week ============
   let arPerWeek: number[];
@@ -344,7 +344,6 @@ export const buildForecast = (
   for (let i = 0; i < weeksCount; i++) {
     const weekStart = weekStartDates[i];
     const weekEnd = addDays(weekStart, 6);
-    const weekNum = i + 1; // 1-indexed
 
     const monthIndex = Math.floor(i / WEEKS_PER_MONTH);
     const stripeRevenue = stripeDaily * 5 * Math.pow(1 + stripeGrowthMonthly, monthIndex);
@@ -353,7 +352,7 @@ export const buildForecast = (
 
     // Payroll
     let payroll = 0;
-    if (PAYROLL_WEEKS.has(weekNum)) {
+    if (payrollWeekSet.has(i)) {
       payroll = payrollSemi + payrollFee;
       if (hireOverride?.weeks?.[i] != null) {
         payroll += Number(hireOverride.weeks[i]) || 0;
@@ -367,7 +366,8 @@ export const buildForecast = (
     const cogsTotal = cogsRows.reduce((s, r) => s + r.weeks[i], 0);
 
     // Brex
-    const brexCard = brexByWeek[weekNum] ?? 0;
+    const brexCard = brexByWeekIdx[i] ?? 0;
+
 
     // OpEx total
     const opexTotal = opexRows.reduce((s, r) => s + r.weeks[i], 0);
