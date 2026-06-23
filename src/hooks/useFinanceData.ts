@@ -478,3 +478,74 @@ export const useUpdateWeeklyActual = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 };
+
+// ============ Weekly report finalize state ============
+export type WeeklyReportState = {
+  week_start_date: string;
+  finalized: boolean;
+  finalized_at: string | null;
+  finalized_by: string | null;
+  sent_at: string | null;
+  sent_via: string | null;
+};
+
+export const useWeeklyReportState = () =>
+  useQuery({
+    queryKey: ["weekly_report_state", getCurrentMondayKey()],
+    queryFn: async () => {
+      const wk = getCurrentMondayKey();
+      const { data, error } = await supabase
+        .from("weekly_report_state" as any)
+        .select("*")
+        .eq("week_start_date", wk)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as WeeklyReportState | null;
+    },
+  });
+
+export const useFinalizeAndSendWeeklyReport = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const wk = getCurrentMondayKey();
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth?.user?.id ?? null;
+      const { error: upsertErr } = await supabase
+        .from("weekly_report_state" as any)
+        .upsert(
+          {
+            week_start_date: wk,
+            finalized: true,
+            finalized_at: new Date().toISOString(),
+            finalized_by: userId,
+          } as any,
+          { onConflict: "week_start_date" },
+        );
+      if (upsertErr) throw upsertErr;
+
+      const { data, error } = await supabase.functions.invoke("weekly-report", {
+        body: { force: true },
+      });
+      if (error) throw error;
+      return data as {
+        ok: boolean;
+        delivered_via?: string;
+        skipped?: boolean;
+        reason?: string;
+        error?: string;
+      };
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["weekly_report_state"] });
+      if (data?.skipped) {
+        toast.message(`Report skipped: ${data.reason ?? "unknown"}`);
+      } else if (data?.ok) {
+        toast.success(`Report sent via ${data.delivered_via ?? "slack"}`);
+      } else {
+        toast.error(data?.error ?? "Send failed");
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+};
