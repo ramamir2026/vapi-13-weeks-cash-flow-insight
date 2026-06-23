@@ -37,6 +37,7 @@ import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useAssumptions } from "@/hooks/useFinanceData";
 import { ASSUMPTION_KEY_TO_BANK_SOURCE } from "@/lib/accounts";
 import { ingestFile } from "@/lib/ingest";
 
@@ -111,6 +112,23 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
   const [dragOver, setDragOver] = useState(false);
   const [importing, setImporting] = useState(false);
   const { data: accounts } = useAccounts();
+  const { data: assumptionsList = [] } = useAssumptions();
+
+  // SVB Money-Market anchor (see BankImports.tsx for rationale). Built from
+  // mm_anchor_date (YYYYMMDD) + mm_anchor_balance — NOT cash_svb_mm, which
+  // drifts each week and would double-count sweeps if reused here.
+  const mmAnchor = useMemo(() => {
+    const dRaw = Number(
+      assumptionsList.find((a) => a.key === "mm_anchor_date")?.value ?? 0,
+    );
+    const bal = Number(
+      assumptionsList.find((a) => a.key === "mm_anchor_balance")?.value ?? 0,
+    );
+    if (!dRaw || !Number.isFinite(bal)) return null;
+    const s = String(Math.trunc(dRaw));
+    if (s.length !== 8) return null;
+    return { date: `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`, balance: bal };
+  }, [assumptionsList]);
 
   // Required & restricted sources derived live from the accounts registry —
   // adding/removing an account row in the DB is the only thing needed to change
@@ -145,7 +163,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         if (ing.sheets.length > 1) {
           // Multi-sheet workbook: pick the first sheet the detector recognises.
           const match = ing.sheets.find(
-            (s) => detectAndParse(s.csv, file.name, accounts).rows.length > 0,
+            (s) => detectAndParse(s.csv, file.name, accounts, mmAnchor).rows.length > 0,
           );
           csvForDetect = match?.csv ?? ing.text;
         } else {
@@ -161,7 +179,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
           continue;
         }
       }
-      const result = detectAndParse(csvForDetect, file.name, accounts);
+      const result = detectAndParse(csvForDetect, file.name, accounts, mmAnchor);
       const score = CONFIDENCE_SCORE[result.confidence];
       staged.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -184,7 +202,7 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
         `Staged ${staged.length} file${staged.length === 1 ? "" : "s"}. ${auto} auto-accepted (≥ 0.8 confidence).`
       );
     }
-  }, [accounts]);
+  }, [accounts, mmAnchor]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();

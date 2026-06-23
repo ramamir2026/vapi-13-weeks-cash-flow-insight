@@ -38,6 +38,8 @@ const SECTIONS: SectionDef[] = [
       { key: "cash_stripe_clearing" },
       { key: "cash_ramp_checking" },
       { key: "cash_ramp_treasury" },
+      { key: "mm_anchor_date" },
+      { key: "mm_anchor_balance" },
     ],
   },
   {
@@ -110,7 +112,11 @@ const SECTIONS: SectionDef[] = [
   },
 ];
 
-const CASH_KEYS = SECTIONS[0].rows.map((r) => r.key);
+// Only true cash-balance rows feed the opening-cash TOTAL. The MM anchor
+// rows live in the same section for UX, but are not balances themselves.
+const CASH_KEYS = SECTIONS[0].rows
+  .map((r) => r.key)
+  .filter((k) => k.startsWith("cash_"));
 
 interface AssumptionRowProps {
   a: Assumption;

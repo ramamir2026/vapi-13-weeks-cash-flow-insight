@@ -20,9 +20,11 @@
 import { parseBrexCsv } from "./brex";
 import { parseStripeCsv } from "./stripe";
 import { parseSvbCheckingCsv } from "./svbChecking";
-import { parseSvbMoneyMarketCsv } from "./svbMoneyMarket";
+import { parseSvbMoneyMarketCsv, type MmAnchor } from "./svbMoneyMarket";
 import { parseRampTransfersCsv, isRampTransfersHeader } from "./rampTransfers";
 import { deriveOpeningBalance } from "./deriveBalance";
+
+export type { MmAnchor } from "./svbMoneyMarket";
 import {
   BankSource,
   DetectionResult,
@@ -227,6 +229,7 @@ export const detectAndParse = (
   rawText: string,
   filename: string,
   accounts?: AccountRow[],
+  mmAnchor?: MmAnchor | null,
 ): DetectionResult => {
   const text = normalizeText(rawText);
   const hint = filenameHint(filename);
@@ -378,7 +381,7 @@ export const detectAndParse = (
         : parseBrexCsv(text, source);
       break;
     case "svb_money_market":
-      rows = parseSvbMoneyMarketCsv(text);
+      rows = parseSvbMoneyMarketCsv(text, mmAnchor ?? null);
       break;
     case "svb_checking":
     case "svb_collateral":

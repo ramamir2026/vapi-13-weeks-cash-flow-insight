@@ -50,6 +50,7 @@ export const BANK_TO_ASSUMPTION_KEY: Record<Exclude<BankSource, "brex_card">, st
 export const MANUAL_BALANCE_SOURCES: ReadonlySet<BankSource> = new Set<BankSource>([
   "ramp_checking",
   "ramp_treasury",
+  "svb_money_market",
 ]);
 
 export type ParsedTxn = {
