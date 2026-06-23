@@ -112,6 +112,23 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
   const [dragOver, setDragOver] = useState(false);
   const [importing, setImporting] = useState(false);
   const { data: accounts } = useAccounts();
+  const { data: assumptionsList = [] } = useAssumptions();
+
+  // SVB Money-Market anchor (see BankImports.tsx for rationale). Built from
+  // mm_anchor_date (YYYYMMDD) + mm_anchor_balance — NOT cash_svb_mm, which
+  // drifts each week and would double-count sweeps if reused here.
+  const mmAnchor = useMemo(() => {
+    const dRaw = Number(
+      assumptionsList.find((a) => a.key === "mm_anchor_date")?.value ?? 0,
+    );
+    const bal = Number(
+      assumptionsList.find((a) => a.key === "mm_anchor_balance")?.value ?? 0,
+    );
+    if (!dRaw || !Number.isFinite(bal)) return null;
+    const s = String(Math.trunc(dRaw));
+    if (s.length !== 8) return null;
+    return { date: `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`, balance: bal };
+  }, [assumptionsList]);
 
   // Required & restricted sources derived live from the accounts registry —
   // adding/removing an account row in the DB is the only thing needed to change
