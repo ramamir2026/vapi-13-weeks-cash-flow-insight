@@ -28,6 +28,8 @@ import { formatCurrency, formatNumber } from "@/lib/format";
 import { ForecastGrid } from "@/components/forecast/ForecastGrid";
 import { BalanceVerificationBanner } from "@/components/dashboard/BalanceVerificationBanner";
 import { MondayChecklist } from "@/components/dashboard/MondayChecklist";
+import { FinalizeWeekButton, FinalizeWeekStatus } from "@/components/dashboard/FinalizeWeekCard";
+
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { useAutoCheckChecklistItem } from "@/hooks/useBankData";
 import { useAuth } from "@/hooks/useAuth";
