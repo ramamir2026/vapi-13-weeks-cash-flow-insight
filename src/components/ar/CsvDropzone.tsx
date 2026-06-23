@@ -5,17 +5,25 @@ import { ingestFile, pickSheetByName } from "@/lib/ingest";
 
 type Props = {
   onFile: (text: string, fileName: string) => void;
+  /** Regex matched against worksheet names when ingesting Excel. Defaults to the A/R aging sheets. */
+  sheetPattern?: RegExp;
+  /** Override the dropzone copy (defaults to A/R messaging). */
+  title?: string;
+  subtitle?: string;
 };
 
-export const CsvDropzone = ({ onFile }: Props) => {
+const DEFAULT_SHEET_PATTERN = /aging summary|ar aging/i;
+
+export const CsvDropzone = ({ onFile, sheetPattern, title, subtitle }: Props) => {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pattern = sheetPattern ?? DEFAULT_SHEET_PATTERN;
 
   const readFile = useCallback(
     async (file: File) => {
       try {
         const ing = await ingestFile(file);
-        const sheet = pickSheetByName(ing, /aging summary|ar aging/i) ?? ing.sheets[0];
+        const sheet = pickSheetByName(ing, pattern) ?? ing.sheets[0];
         onFile(sheet?.csv ?? ing.text, file.name);
       } catch {
         // Fallback to plain text
@@ -24,7 +32,7 @@ export const CsvDropzone = ({ onFile }: Props) => {
         reader.readAsText(file);
       }
     },
-    [onFile]
+    [onFile, pattern]
   );
 
   return (
@@ -48,10 +56,10 @@ export const CsvDropzone = ({ onFile }: Props) => {
     >
       <Upload className="h-6 w-6 text-muted-foreground" />
       <div className="text-sm font-medium text-foreground">
-        Drop QuickBooks A/R Aging CSV or Excel here
+        {title ?? "Drop QuickBooks A/R Aging CSV or Excel here"}
       </div>
       <div className="text-xs text-muted-foreground">
-        or click to browse · auto-fills probability & expected week
+        {subtitle ?? "or click to browse · auto-fills probability & expected week"}
       </div>
       <input
         ref={inputRef}
