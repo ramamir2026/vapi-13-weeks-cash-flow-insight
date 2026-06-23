@@ -287,6 +287,72 @@ export const useApplyHirePayrollOverride = () => {
   });
 };
 
+// ============ AP weekly overrides ============
+export type ApWeeklyOverride = {
+  id: string;
+  forecast_start: string;
+  weeks_by_vendor: Record<string, number[]>;
+  weeks_total: number[];
+  import_filename: string | null;
+  created_at: string;
+};
+
+export const useApWeeklyOverride = () =>
+  useQuery({
+    queryKey: ["ap_weekly_overrides", currentForecastStartISO()],
+    queryFn: async () => {
+      const start = currentForecastStartISO();
+      const { data, error } = await supabase
+        .from("ap_weekly_overrides" as any)
+        .select("*")
+        .eq("forecast_start", start)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const row = data as any;
+      return {
+        id: row.id,
+        forecast_start: row.forecast_start,
+        weeks_by_vendor: (row.weeks_by_vendor ?? {}) as Record<string, number[]>,
+        weeks_total: (row.weeks_total ?? new Array(5).fill(0)) as number[],
+        import_filename: row.import_filename ?? null,
+        created_at: row.created_at,
+      } as ApWeeklyOverride;
+    },
+  });
+
+export const useApplyApOverride = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      weeksByVendor,
+      weeksTotal,
+      importFilename,
+    }: {
+      weeksByVendor: Record<string, number[]>;
+      weeksTotal: number[];
+      importFilename?: string | null;
+    }) => {
+      const start = currentForecastStartISO();
+      const { error } = await supabase.from("ap_weekly_overrides" as any).insert({
+        forecast_start: start,
+        weeks_by_vendor: weeksByVendor as any,
+        weeks_total: weeksTotal as any,
+        import_filename: importFilename ?? null,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ap_weekly_overrides"] });
+      toast.success("A/P bills applied to model");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+};
+
+
 // ============ Forecast snapshot ============
 export type ForecastSnapshotWeek = {
   week_index: number;
