@@ -20,9 +20,11 @@
 import { parseBrexCsv } from "./brex";
 import { parseStripeCsv } from "./stripe";
 import { parseSvbCheckingCsv } from "./svbChecking";
-import { parseSvbMoneyMarketCsv } from "./svbMoneyMarket";
+import { parseSvbMoneyMarketCsv, type MmAnchor } from "./svbMoneyMarket";
 import { parseRampTransfersCsv, isRampTransfersHeader } from "./rampTransfers";
 import { deriveOpeningBalance } from "./deriveBalance";
+
+export type { MmAnchor } from "./svbMoneyMarket";
 import {
   BankSource,
   DetectionResult,
