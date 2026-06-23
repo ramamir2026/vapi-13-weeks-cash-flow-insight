@@ -83,11 +83,15 @@ export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] =
     const rec: Record<string, string> = {};
     cols.forEach((val, idx) => {
       const k = mapping[idx];
-      if (k) rec[k] = val;
+      // First non-empty value wins — an empty Memo must not clobber a real To/From.
+      if (k && val !== undefined && val !== "" && rec[k] === undefined) {
+        rec[k] = val;
+      }
     });
 
     const date = toIsoDate(rec.date || "");
     const vendor = (rec.vendor || "").trim();
+    const note = (rec.note || "").trim();
     const amount = parseAmount(rec.amount || "0");
     if (!date || !vendor || amount === 0) continue;
     if (rec.status && SKIP_STATUSES.has(norm(rec.status))) continue;
@@ -98,7 +102,7 @@ export const parseBrexCsv = (rawText: string, source: BankSource): ParsedTxn[] =
       vendor,
       amount,
       balance: rec.balance ? parseAmount(rec.balance) : null,
-      category: autoCategorize(vendor, source),
+      category: autoCategorize(vendor, source, note),
       bank_source: source,
     });
   }
