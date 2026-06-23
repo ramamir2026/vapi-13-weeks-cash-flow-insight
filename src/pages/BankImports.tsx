@@ -40,6 +40,8 @@ import {
   type ParsedTxn,
 } from "@/lib/bankParsers/types";
 import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
+import { reconcileParsedRows } from "@/lib/bankParsers/reconcile";
+import { ReconciliationBanner } from "@/components/bank/ReconciliationBanner";
 import { Input } from "@/components/ui/input";
 import {
   extractClosingBalanceFromCsv,
