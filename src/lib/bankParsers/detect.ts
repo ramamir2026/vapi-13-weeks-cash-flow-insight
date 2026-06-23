@@ -369,9 +369,13 @@ export const detectAndParse = (
     case "brex_primary":
     case "brex_treasury":
     case "brex_stripe_clearing":
+      rows = parseBrexCsv(text, source);
+      break;
     case "ramp_checking":
     case "ramp_treasury":
-      rows = parseBrexCsv(text, source);
+      rows = header.sig === "ramp_transfers"
+        ? parseRampTransfersCsv(text, source)
+        : parseBrexCsv(text, source);
       break;
     case "svb_money_market":
       rows = parseSvbMoneyMarketCsv(text);
