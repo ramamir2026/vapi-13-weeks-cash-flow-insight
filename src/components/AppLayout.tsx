@@ -24,6 +24,7 @@ const baseNavItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/assumptions", label: "Assumptions", icon: Settings2 },
   { to: "/ar-schedule", label: "A/R Schedule", icon: Receipt },
+  { to: "/ap-schedule", label: "A/P Aging", icon: Receipt },
   { to: "/future-hires", label: "Future Hires", icon: UserPlus },
   { to: "/variance", label: "Variance & Insights", icon: TrendingUp },
   { to: "/bank-imports", label: "Bank Imports", icon: Banknote },

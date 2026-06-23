@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Assumptions from "./pages/Assumptions";
 import ArSchedule from "./pages/ArSchedule";
+import ApSchedule from "./pages/ApSchedule";
 import FutureHires from "./pages/FutureHires";
 import VarianceInsights from "./pages/VarianceInsights";
 import AuditLog from "./pages/AuditLog";
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/" element={<Shell><Dashboard /></Shell>} />
             <Route path="/assumptions" element={<Shell><Assumptions /></Shell>} />
             <Route path="/ar-schedule" element={<Shell><ArSchedule /></Shell>} />
+            <Route path="/ap-schedule" element={<Shell><ApSchedule /></Shell>} />
             <Route path="/future-hires" element={<Shell><FutureHires /></Shell>} />
             <Route path="/variance" element={<Shell><VarianceInsights /></Shell>} />
             <Route path="/audit-log" element={<Shell><AuditLog /></Shell>} />
