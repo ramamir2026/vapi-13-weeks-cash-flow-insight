@@ -310,6 +310,16 @@ export const detectAndParse = (
       }
       break;
     }
+    case "ramp_transfers": {
+      source = "ramp_checking";
+      confidence = "high";
+      signalUsed = "Ramp Transfers header (From + To + Amount + Date)";
+      if (hint === "ramp_treasury") {
+        source = "ramp_treasury";
+        signalUsed += " + filename hint (treasury)";
+      }
+      break;
+    }
     case "generic_credit_debit": {
       source = "svb_money_market";
       confidence = hint ? "medium" : "low";
