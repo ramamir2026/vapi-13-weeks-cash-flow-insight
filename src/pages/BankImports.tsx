@@ -189,6 +189,7 @@ const TransactionImportTab = () => {
   const [confidence, setConfidence] = useState<"high" | "medium" | "low">("high");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [reconAck, setReconAck] = useState(false);
   const importMut = useImportBankTransactions();
   const uploadStatementMut = useUploadStatement();
   const upsertRule = useUpsertCategoryRule();
@@ -202,6 +203,7 @@ const TransactionImportTab = () => {
     setDetectedSource(null);
     setWarnings([]);
     setConfidence("high");
+    setReconAck(false);
   }, []);
 
   // SVB Money-Market anchor: known EOD balance at a known date. Stored as two
