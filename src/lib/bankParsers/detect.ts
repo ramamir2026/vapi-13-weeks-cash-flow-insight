@@ -158,6 +158,7 @@ const findHeader = (text: string): HeaderInfo | null => {
     svb_bai: 5,
     svb_sweep: 5,
     ramp: 5,
+    ramp_transfers: 5,
     generic_credit_debit: 3,
     generic_desc_amt_bal: 2,
     generic_desc_amt: 1,
