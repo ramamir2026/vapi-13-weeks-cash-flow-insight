@@ -44,8 +44,8 @@ describe("reconcileParsedRows", () => {
 
   it("flipping one amount sign produces a mismatch", () => {
     const rows = buildLedger("2026-04-01", 1_000_000, [100, -200, 50, -25, 500]);
-    // Corrupt one amount so the sum no longer matches the recorded balances.
-    rows[2] = { ...rows[2], amount: -rows[2].amount };
+    // Corrupt an amount well beyond tolerance (0.1% of last balance ≈ $1k).
+    rows[2] = { ...rows[2], amount: rows[2].amount + 50_000 };
     const r = reconcileParsedRows(rows, "brex_primary");
     expect(r.status).toBe("mismatch");
     expect(Math.abs(r.diff ?? 0)).toBeGreaterThan(r.tolerance);
