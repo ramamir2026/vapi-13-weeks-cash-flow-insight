@@ -4,7 +4,7 @@ import { parseHiresCsv } from "./parseHiresCsv";
 describe("parseHiresCsv — header-name mapping", () => {
   it("resolves columns by header name regardless of order and prefers Est Start Date", () => {
     const csv = `Notes,Hiring Stage,Est Start Date,Start Date,Base Salary,Role,New Hire
-ramp hire,Accepted,2026-07-13,2026-09-01,$185,000,Senior Engineer,Jane Doe`;
+ramp hire,Accepted,2026-07-13,2026-09-01,"$185,000",Senior Engineer,Jane Doe`;
     const rows = parseHiresCsv(csv);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
