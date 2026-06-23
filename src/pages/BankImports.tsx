@@ -307,6 +307,11 @@ const TransactionImportTab = () => {
     return { confirmed: confirmed.length, total: rows.length, unmatched, byCategory };
   }, [rows]);
 
+  const recon = useMemo(
+    () => reconcileParsedRows(rows, detectedSource ?? "brex_primary"),
+    [rows, detectedSource],
+  );
+
   const apply = async () => {
     const confirmed = rows.filter((r) => r.confirmed);
     if (!confirmed.length) {
