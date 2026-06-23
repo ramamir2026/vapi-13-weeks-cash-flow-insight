@@ -39,7 +39,6 @@ import { toast } from "sonner";
 import { useAccounts } from "@/hooks/useAccounts";
 import { ASSUMPTION_KEY_TO_BANK_SOURCE } from "@/lib/accounts";
 import { ingestFile } from "@/lib/ingest";
-import { ASSUMPTION_KEY_TO_BANK_SOURCE } from "@/lib/accounts";
 
 // Confidence string → numeric score. ≥ 0.8 auto-accepts.
 export const CONFIDENCE_SCORE: Record<"high" | "medium" | "low", number> = {
