@@ -202,6 +202,23 @@ const TransactionImportTab = () => {
     setConfidence("high");
   }, []);
 
+  // SVB Money-Market anchor: known EOD balance at a known date. Stored as two
+  // separate assumptions so it never drifts when cash_svb_mm auto-updates.
+  // mm_anchor_date is a YYYYMMDD integer; convert to ISO for the parser.
+  const mmAnchor = useMemo(() => {
+    const dRaw = Number(
+      assumptionsList.find((a) => a.key === "mm_anchor_date")?.value ?? 0,
+    );
+    const bal = Number(
+      assumptionsList.find((a) => a.key === "mm_anchor_balance")?.value ?? 0,
+    );
+    if (!dRaw || !Number.isFinite(bal)) return null;
+    const s = String(Math.trunc(dRaw));
+    if (s.length !== 8) return null;
+    const iso = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    return { date: iso, balance: bal };
+  }, [assumptionsList]);
+
   const handleFile = useCallback(
     async (file: File) => {
       // Format-agnostic ingestion: CSV/TSV/TXT/XLSX/PDF → normalized CSV text
@@ -211,7 +228,7 @@ const TransactionImportTab = () => {
         const ing = await ingestFile(file);
         if (ing.sheets.length > 1) {
           const match = ing.sheets.find(
-            (s) => detectAndParse(s.csv, file.name).rows.length > 0,
+            (s) => detectAndParse(s.csv, file.name, undefined, mmAnchor).rows.length > 0,
           );
           text = match?.csv ?? ing.text;
         } else {
@@ -225,7 +242,7 @@ const TransactionImportTab = () => {
           return;
         }
       }
-      const result = detectAndParse(text, file.name);
+      const result = detectAndParse(text, file.name, undefined, mmAnchor);
       if (!result.rows.length) {
         toast.error(result.warnings[0] ?? "No transactions found in file.");
         // Still surface detection so the user can override and retry.
@@ -249,7 +266,7 @@ const TransactionImportTab = () => {
       );
       toast.success(`Parsed ${result.rows.length} transactions from ${file.name}`);
     },
-    [rules]
+    [rules, mmAnchor]
   );
 
   const onDrop = (e: React.DragEvent) => {
