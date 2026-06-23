@@ -89,6 +89,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ap_weekly_overrides: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          forecast_start: string
+          id: string
+          import_filename: string | null
+          weeks_by_vendor: Json
+          weeks_total: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          forecast_start: string
+          id?: string
+          import_filename?: string | null
+          weeks_by_vendor: Json
+          weeks_total: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          forecast_start?: string
+          id?: string
+          import_filename?: string | null
+          weeks_by_vendor?: Json
+          weeks_total?: Json
+        }
+        Relationships: []
+      }
       ar_entries: {
         Row: {
           created_at: string

@@ -210,6 +210,14 @@ export interface HireOverride {
   weeks: number[];
 }
 
+// AP-aging override: per-vendor weekly dollars for W1..W5 (length 5).
+// `cogs_other` is NEVER driven from AP — it stays smoothed from assumptions.
+export interface ApOverride {
+  weeks_by_vendor: Record<string, number[]>;
+}
+
+const AP_OVERRIDE_HORIZON = 5;
+
 export const buildForecast = (
   assumptions: AssumptionMap,
   arEntries: ARForecastEntry[],
@@ -220,7 +228,9 @@ export const buildForecast = (
   hireOverride?: HireOverride | null,
   // Assumption keys for active, non-restricted accounts (from accounts table).
   activeCashKeys?: string[],
+  apOverride?: ApOverride | null,
 ): ForecastResult => {
+
   const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
 
   const keys = activeCashKeys ?? [];
@@ -263,6 +273,7 @@ export const buildForecast = (
     rentRow[p.weekIdx] = monthHere >= 9 ? rentOctPlus : rentMaySep;
   });
 
+
   const cogsRows: VendorRow[] = [];
   for (const v of COGS_VENDORS) {
     const base = assumptions[v.key] ?? 0;
@@ -275,7 +286,25 @@ export const buildForecast = (
     }
     cogsRows.push({ key: v.key, label: v.label, weeks: arr });
   }
+
+  // ============ AP override (W1..W5) ============
+  // For each mapped COGS vendor present in the override, replace W1..W5 with
+  // the AP-derived totals. Vendors NOT in the override stay on the calendar
+  // pay-day model. `cogs_other` is never touched.
+  if (apOverride && apOverride.weeks_by_vendor) {
+    const horizon = Math.min(AP_OVERRIDE_HORIZON, weeksCount);
+    for (const row of cogsRows) {
+      if (row.key === "cogs_other") continue;
+      const v = apOverride.weeks_by_vendor[row.key];
+      if (!Array.isArray(v)) continue;
+      for (let w = 0; w < horizon; w++) {
+        row.weeks[w] = Number(v[w]) || 0;
+      }
+    }
+  }
+
   {
+
     const monthly = assumptions["cogs_other"] ?? 0;
     const perWeek = monthly / WEEKS_PER_MONTH;
     cogsRows.push({

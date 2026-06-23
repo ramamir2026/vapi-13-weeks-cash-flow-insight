@@ -8,6 +8,7 @@ import { ImportActualsDialog } from "@/components/dashboard/ImportActualsDialog"
 import {
   useArEntries,
   useArWeeklyOverride,
+  useApWeeklyOverride,
   useAssumptions,
   useFutureHires,
   useHirePayrollOverride,
@@ -80,6 +81,7 @@ export default function Dashboard() {
   const { data: actualsData } = useWeeklyActuals();
   const { data: arOverride } = useArWeeklyOverride();
   const { data: hireOverride } = useHirePayrollOverride();
+  const { data: apOverride } = useApWeeklyOverride();
   const { data: signoffsList } = useWeekSignoffs();
   const isApprover = useIsApprover();
   const signOff = useSignOffWeek();
@@ -139,8 +141,9 @@ export default function Dashboard() {
       arOverride ? { weeks: arOverride.weeks, delay_days: arOverride.delay_days } : null,
       hireOverride ? { weeks: hireOverride.weeks } : null,
       activeCashKeys,
+      apOverride ? { weeks_by_vendor: apOverride.weeks_by_vendor } : null,
     );
-  }, [assumptions, arEntries, hires, arOverride, hireOverride, activeCashKeys]);
+  }, [assumptions, arEntries, hires, arOverride, hireOverride, apOverride, activeCashKeys]);
 
   if (loading || !forecast) {
     return (

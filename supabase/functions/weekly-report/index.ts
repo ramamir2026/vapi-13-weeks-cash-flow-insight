@@ -91,6 +91,7 @@ async function generateForecastSnapshot(
     { data: arOverrideRows },
     { data: hireOverrideRows },
     { data: accountsRows },
+    { data: apOverrideRows },
   ] = await Promise.all([
     supabase.from("assumptions").select("key, value"),
     supabase.from("ar_entries").select("expected_collection_date, invoice_amount, status"),
@@ -108,6 +109,11 @@ async function generateForecastSnapshot(
     supabase
       .from("accounts")
       .select("assumption_key, is_active, is_restricted"),
+    supabase
+      .from("ap_weekly_overrides")
+      .select("forecast_start, weeks_by_vendor")
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!assumptionsRows) return null;
@@ -130,6 +136,11 @@ async function generateForecastSnapshot(
     hireOv && hireOv.forecast_start === startISO
       ? { weeks: hireOv.weeks as number[] }
       : null;
+  const apOv = (apOverrideRows ?? [])[0];
+  const apOverride =
+    apOv && apOv.forecast_start === startISO
+      ? { weeks_by_vendor: apOv.weeks_by_vendor as Record<string, number[]> }
+      : null;
 
   const activeCashKeys = ((accountsRows as Array<{ assumption_key: string; is_active: boolean; is_restricted: boolean }>) ?? [])
     .filter((a) => a.is_active && !a.is_restricted)
@@ -144,6 +155,7 @@ async function generateForecastSnapshot(
     arOverride,
     hireOverride,
     activeCashKeys,
+    apOverride,
   );
 
   const snapshotId = crypto.randomUUID();

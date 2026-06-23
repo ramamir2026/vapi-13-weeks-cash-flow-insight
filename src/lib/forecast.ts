@@ -222,6 +222,14 @@ export interface HireOverride {
   weeks: number[]; // length = weeksCount, totals at payroll-week indices (W2/4/6/8/10/12)
 }
 
+// AP-aging override: per-vendor weekly dollars for W1..W5 (length 5).
+// `cogs_other` is NEVER driven from AP — it stays smoothed from assumptions.
+export interface ApOverride {
+  weeks_by_vendor: Record<string, number[]>;
+}
+
+const AP_OVERRIDE_HORIZON = 5;
+
 export const buildForecast = (
   assumptions: AssumptionMap,
   arEntries: ARForecastEntry[],
@@ -233,8 +241,10 @@ export const buildForecast = (
   // Assumption keys for active, non-restricted accounts (from accounts table).
   // Opening cash = sum of these. No hardcoded fallback — callers must pass the
   // list. If empty/undefined, falls back to the legacy single opening_cash_balance.
-  activeCashKeys?: string[]
+  activeCashKeys?: string[],
+  apOverride?: ApOverride | null,
 ): ForecastResult => {
+
   const start = startOfWeek(startDate ?? new Date(), { weekStartsOn: 1 });
 
   // Opening cash = sum of every active, non-restricted account's latest balance.
@@ -296,6 +306,25 @@ export const buildForecast = (
     }
     cogsRows.push({ key: v.key, label: v.label, weeks: arr });
   }
+
+  // ============ AP override (W1..W5) ============
+  // For each mapped COGS vendor present in the override, replace W1..W5 with
+  // the AP-derived totals (AP wins for that vendor). Vendors NOT in the
+  // override are left on the calendar pay-day model (so Twilio/Gemini/etc.
+  // that aren't billed in the AP file don't get zeroed). `cogs_other` is
+  // never touched — it stays smoothed across the whole window.
+  if (apOverride && apOverride.weeks_by_vendor) {
+    const horizon = Math.min(AP_OVERRIDE_HORIZON, weeksCount);
+    for (const row of cogsRows) {
+      if (row.key === "cogs_other") continue;
+      const v = apOverride.weeks_by_vendor[row.key];
+      if (!Array.isArray(v)) continue;
+      for (let w = 0; w < horizon; w++) {
+        row.weeks[w] = Number(v[w]) || 0;
+      }
+    }
+  }
+
   // Other COGS smoothed
   {
     const monthly = assumptions["cogs_other"] ?? 0;
