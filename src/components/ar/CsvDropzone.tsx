@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ingestFile, pickSheetByName } from "@/lib/ingest";
 
 type Props = {
   onFile: (text: string, fileName: string) => void;
@@ -11,13 +12,17 @@ export const CsvDropzone = ({ onFile }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const readFile = useCallback(
-    (file: File) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = (e.target?.result as string) ?? "";
-        onFile(text, file.name);
-      };
-      reader.readAsText(file);
+    async (file: File) => {
+      try {
+        const ing = await ingestFile(file);
+        const sheet = pickSheetByName(ing, /aging summary|ar aging/i) ?? ing.sheets[0];
+        onFile(sheet?.csv ?? ing.text, file.name);
+      } catch {
+        // Fallback to plain text
+        const reader = new FileReader();
+        reader.onload = (e) => onFile((e.target?.result as string) ?? "", file.name);
+        reader.readAsText(file);
+      }
     },
     [onFile]
   );
@@ -33,7 +38,7 @@ export const CsvDropzone = ({ onFile }: Props) => {
         e.preventDefault();
         setDragOver(false);
         const file = e.dataTransfer.files?.[0];
-        if (file) readFile(file);
+        if (file) void readFile(file);
       }}
       onClick={() => inputRef.current?.click()}
       className={cn(
@@ -43,7 +48,7 @@ export const CsvDropzone = ({ onFile }: Props) => {
     >
       <Upload className="h-6 w-6 text-muted-foreground" />
       <div className="text-sm font-medium text-foreground">
-        Drop QuickBooks A/R Aging CSV here
+        Drop QuickBooks A/R Aging CSV or Excel here
       </div>
       <div className="text-xs text-muted-foreground">
         or click to browse · auto-fills probability & expected week
@@ -51,11 +56,11 @@ export const CsvDropzone = ({ onFile }: Props) => {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) readFile(file);
+          if (file) void readFile(file);
           e.target.value = "";
         }}
       />
