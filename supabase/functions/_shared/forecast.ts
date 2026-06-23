@@ -242,37 +242,45 @@ export const buildForecast = (
   const rentMaySep = assumptions["rent_may_sep"] ?? 0;
   const rentOctPlus = assumptions["rent_oct_plus"] ?? 0;
 
-  const brexByWeek: Record<number, number> = {
-    5: assumptions["brex_w2"] ?? 0,
-    9: assumptions["brex_w7"] ?? 0,
-  };
-
   const weekStartDates: Date[] = [];
   for (let i = 0; i < weeksCount; i++) weekStartDates.push(addDays(start, i * 7));
 
+  const payrollWeekSet = new Set(payrollWeekIndices(weekStartDates));
+
+  const firstOfMonthPlacements = paymentPlacements(1, adjustForward, weekStartDates);
+  const cardAmounts = [
+    assumptions["brex_w2"] ?? 0,
+    assumptions["brex_w7"] ?? 0,
+    assumptions["brex_w11"] ?? 0,
+  ];
+  const brexByWeekIdx: Record<number, number> = {};
+  const rentRow = new Array(weeksCount).fill(0);
+  firstOfMonthPlacements.forEach((p, idx) => {
+    if (idx < cardAmounts.length) {
+      brexByWeekIdx[p.weekIdx] = (brexByWeekIdx[p.weekIdx] ?? 0) + cardAmounts[idx];
+    }
+    const monthHere = weekStartDates[p.weekIdx].getMonth();
+    rentRow[p.weekIdx] = monthHere >= 9 ? rentOctPlus : rentMaySep;
+  });
+
   const cogsRows: VendorRow[] = [];
-  for (const key of Object.keys(COGS_VENDOR_WEEKS)) {
-    const monthlyBase = assumptions[key] ?? 0;
-    const positions = COGS_VENDOR_WEEKS[key];
+  for (const v of COGS_VENDORS) {
+    const base = assumptions[v.key] ?? 0;
     const arr = new Array(weeksCount).fill(0);
-    for (const w of positions) {
-      const idx = w - 1;
-      if (idx >= 0 && idx < weeksCount) {
-        const monthIdx = Math.floor(idx / WEEKS_PER_MONTH);
-        const monthly = COGS_GROWTH_KEYS.has(key)
-          ? monthlyBase * Math.pow(1 + COGS_MONTHLY_GROWTH, monthIdx)
-          : monthlyBase;
-        arr[idx] = monthly;
+    if (base > 0) {
+      const growth = v.growth ?? 0;
+      for (const p of paymentPlacements(v.payDay, adjustForward, weekStartDates, v.cadenceMonths ?? 1)) {
+        arr[p.weekIdx] += base * Math.pow(1 + growth, p.ordinal);
       }
     }
-    cogsRows.push({ key, label: COGS_LABELS[key], weeks: arr });
+    cogsRows.push({ key: v.key, label: v.label, weeks: arr });
   }
   {
     const monthly = assumptions["cogs_other"] ?? 0;
     const perWeek = monthly / WEEKS_PER_MONTH;
     cogsRows.push({
       key: "cogs_other",
-      label: COGS_LABELS["cogs_other"],
+      label: "Other COGS",
       weeks: new Array(weeksCount).fill(perWeek),
     });
   }
@@ -286,14 +294,6 @@ export const buildForecast = (
     }
     return { key, label: OPEX_LABELS[key], weeks: arr };
   });
-
-  const rentRow = new Array(weeksCount).fill(0);
-  const rentPaymentIndices = [4, 8];
-  for (const idx of rentPaymentIndices) {
-    if (idx >= weeksCount) continue;
-    const m = weekStartDates[idx].getMonth();
-    rentRow[idx] = m >= 9 ? rentOctPlus : rentMaySep;
-  }
 
   let arPerWeek: number[];
   if (arOverride && Array.isArray(arOverride.weeks) && arOverride.weeks.length > 0) {
@@ -320,7 +320,6 @@ export const buildForecast = (
   for (let i = 0; i < weeksCount; i++) {
     const weekStart = weekStartDates[i];
     const weekEnd = addDays(weekStart, 6);
-    const weekNum = i + 1;
 
     const monthIndex = Math.floor(i / WEEKS_PER_MONTH);
     const stripeRevenue = stripeDaily * 5 * Math.pow(1 + stripeGrowthMonthly, monthIndex);
@@ -328,7 +327,7 @@ export const buildForecast = (
     const arCollections = arPerWeek[i];
 
     let payroll = 0;
-    if (PAYROLL_WEEKS.has(weekNum)) {
+    if (payrollWeekSet.has(i)) {
       payroll = payrollSemi + payrollFee;
       if (hireOverride?.weeks?.[i] != null) {
         payroll += Number(hireOverride.weeks[i]) || 0;
@@ -339,9 +338,10 @@ export const buildForecast = (
     }
 
     const cogsTotal = cogsRows.reduce((s, r) => s + r.weeks[i], 0);
-    const brexCard = brexByWeek[weekNum] ?? 0;
+    const brexCard = brexByWeekIdx[i] ?? 0;
     const opexTotal = opexRows.reduce((s, r) => s + r.weeks[i], 0);
     const rent = rentRow[i];
+
 
     // Cash inflows = Stripe run-rate + Enterprise ACH run-rate ONLY.
     // Enterprise collections are already counted once here via enterprise_ach_weekly,
