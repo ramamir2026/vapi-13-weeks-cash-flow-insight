@@ -137,23 +137,31 @@ export const BatchDetectCard = ({ onImportFile, disabled }: BatchDetectCardProps
     const arr = Array.from(list);
     const staged: StagedFile[] = [];
     for (const file of arr) {
-      const lower = file.name.toLowerCase();
-      const looksCsv =
-        lower.endsWith(".csv") ||
-        file.type === "text/csv" ||
-        file.type === "application/vnd.ms-excel";
-      if (!looksCsv) {
-        toast.error(`${file.name}: not a CSV — skipped.`);
-        continue;
-      }
-      let text: string;
+      // Format-agnostic: ingest CSV/TSV/TXT/XLSX/PDF → normalized CSV text
+      // before detection. Routing is by content (detector), not extension.
+      let csvForDetect: string;
       try {
-        text = await file.text();
+        const ing = await ingestFile(file);
+        if (ing.sheets.length > 1) {
+          // Multi-sheet workbook: pick the first sheet the detector recognises.
+          const match = ing.sheets.find(
+            (s) => detectAndParse(s.csv, file.name, accounts).rows.length > 0,
+          );
+          csvForDetect = match?.csv ?? ing.text;
+        } else {
+          csvForDetect = ing.text;
+        }
       } catch {
-        toast.error(`${file.name}: could not read file.`);
-        continue;
+        // Fallback to plain-text read so well-formed CSVs still work even if
+        // the ingest layer chokes on an unusual file.
+        try {
+          csvForDetect = await file.text();
+        } catch {
+          toast.error(`${file.name}: could not read file.`);
+          continue;
+        }
       }
-      const result = detectAndParse(text, file.name, accounts);
+      const result = detectAndParse(csvForDetect, file.name, accounts);
       const score = CONFIDENCE_SCORE[result.confidence];
       staged.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
