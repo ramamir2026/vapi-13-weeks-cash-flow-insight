@@ -268,7 +268,24 @@ export const buildForecast = (
   firstOfMonthPlacements.forEach((p, idx) => {
     if (idx < cardAmounts.length) {
       brexByWeekIdx[p.weekIdx] = (brexByWeekIdx[p.weekIdx] ?? 0) + cardAmounts[idx];
+  }
+
+  // ============ AP override (W1..W5) ============
+  // For each mapped COGS vendor present in the override, replace W1..W5 with
+  // the AP-derived totals. Vendors NOT in the override stay on the calendar
+  // pay-day model. `cogs_other` is never touched.
+  if (apOverride && apOverride.weeks_by_vendor) {
+    const horizon = Math.min(AP_OVERRIDE_HORIZON, weeksCount);
+    for (const row of cogsRows) {
+      if (row.key === "cogs_other") continue;
+      const v = apOverride.weeks_by_vendor[row.key];
+      if (!Array.isArray(v)) continue;
+      for (let w = 0; w < horizon; w++) {
+        row.weeks[w] = Number(v[w]) || 0;
+      }
     }
+  }
+
     const monthHere = weekStartDates[p.weekIdx].getMonth();
     rentRow[p.weekIdx] = monthHere >= 9 ? rentOctPlus : rentMaySep;
   });
