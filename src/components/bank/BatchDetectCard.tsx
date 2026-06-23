@@ -91,6 +91,8 @@ interface StagedFile {
   confirmed: boolean;
   derivedBalance: number | null;
   balanceAsOf: string | null;
+  recon: ReconciliationResult;
+  reconAck: boolean;
 }
 
 const warnText = "text-[hsl(var(--warn-amber))]";
