@@ -64,19 +64,26 @@ export const probabilityForAging = (days: number): number => {
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-// Map a normalized header cell → bucket key. Handles common QuickBooks variants.
+// Map a normalized header cell → bucket key. Handles common QuickBooks and
+// Rillet variants (e.g. "1-30 days", "90+ days", "Aging Current").
 const matchBucketHeader = (raw: string): BucketKey | null => {
-  const n = norm(raw);
+  let n = norm(raw);
+  if (!n) return null;
+  // Rillet affixes: "Aging Current" → "current"; "1-30 days" → "130".
+  n = n.replace(/^aging/, "");
+  n = n.replace(/days$/, "");
   if (!n) return null;
   if (n === "current" || n === "notdue" || n === "030") return "current";
   if (n === "130" || n === "1to30" || n === "0130") return "b1_30";
   if (n === "3160" || n === "31to60") return "b31_60";
   if (n === "6190" || n === "61to90") return "b61_90";
-  // 91+, >90, over 90, 91 and over, 91andover, 91plus, greaterthan90
+  // 91+, >90, over 90, 91 and over, 91andover, 91plus, greaterthan90,
+  // and Rillet's "90+ days" which normalizes to "90" after stripping "days".
   if (
     n === "91andover" ||
     n === "91plus" ||
     n === "91" ||
+    n === "90" ||
     n === "over90" ||
     n === "greaterthan90" ||
     n === "morethan90" ||
