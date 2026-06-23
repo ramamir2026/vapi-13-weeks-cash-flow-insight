@@ -1,6 +1,7 @@
 // Statement parser: extracts the closing balance from a CSV or text-based PDF
 // monthly statement. Used for opening-balance verification.
 import { parseAmount } from "./types";
+import { extractTextFromPdfBuffer } from "@/lib/ingest";
 
 // Try to find a "balance" or "ending balance" number in the last few non-empty
 // rows of a CSV. Falls back to the largest absolute number near the bottom.
