@@ -288,6 +288,7 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">
             Editable actuals · Live recompute from assumptions
           </p>
+          <div className="mt-1"><FinalizeWeekStatus /></div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>
@@ -307,8 +308,10 @@ export default function Dashboard() {
             <RefreshCw className={cn("h-4 w-4 mr-2", saveSnapshot.isPending && "animate-spin")} />
             Generate Forecast
           </Button>
+          <FinalizeWeekButton />
         </div>
       </div>
+
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
