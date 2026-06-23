@@ -21,6 +21,7 @@ import { parseBrexCsv } from "./brex";
 import { parseStripeCsv } from "./stripe";
 import { parseSvbCheckingCsv } from "./svbChecking";
 import { parseSvbMoneyMarketCsv } from "./svbMoneyMarket";
+import { parseRampTransfersCsv, isRampTransfersHeader } from "./rampTransfers";
 import { deriveOpeningBalance } from "./deriveBalance";
 import {
   BankSource,
@@ -94,6 +95,7 @@ type Sig =
   | "svb_bai"
   | "svb_sweep"
   | "ramp"
+  | "ramp_transfers"
   | "generic_credit_debit"
   | "generic_desc_amt_bal"
   | "generic_desc_amt"
@@ -126,6 +128,9 @@ const classifyHeader = (cols: string[]): Sig => {
   }
   // SVB Money Market Sweep: Sweep Account + Sweep Product
   if (hasAll(cols, ["sweepaccount", "sweepproduct"])) return "svb_sweep";
+  // Ramp Transfers (Business Accounts → Transfers): From + To + Amount + Date.
+  // Check BEFORE the standard Ramp signature.
+  if (isRampTransfersHeader(cols)) return "ramp_transfers";
   // Ramp: Signed Transaction Amount + Detailed Transaction Type
   if (hasAll(cols, ["signedtransactionamount", "detailedtransactiontype"])) return "ramp";
   // Generic shapes (used by Stripe / legacy SVB checking CSVs).
@@ -153,6 +158,7 @@ const findHeader = (text: string): HeaderInfo | null => {
     svb_bai: 5,
     svb_sweep: 5,
     ramp: 5,
+    ramp_transfers: 5,
     generic_credit_debit: 3,
     generic_desc_amt_bal: 2,
     generic_desc_amt: 1,
@@ -304,6 +310,16 @@ export const detectAndParse = (
       }
       break;
     }
+    case "ramp_transfers": {
+      source = "ramp_checking";
+      confidence = "high";
+      signalUsed = "Ramp Transfers header (From + To + Amount + Date)";
+      if (hint === "ramp_treasury") {
+        source = "ramp_treasury";
+        signalUsed += " + filename hint (treasury)";
+      }
+      break;
+    }
     case "generic_credit_debit": {
       source = "svb_money_market";
       confidence = hint ? "medium" : "low";
@@ -353,9 +369,13 @@ export const detectAndParse = (
     case "brex_primary":
     case "brex_treasury":
     case "brex_stripe_clearing":
+      rows = parseBrexCsv(text, source);
+      break;
     case "ramp_checking":
     case "ramp_treasury":
-      rows = parseBrexCsv(text, source);
+      rows = header.sig === "ramp_transfers"
+        ? parseRampTransfersCsv(text, source)
+        : parseBrexCsv(text, source);
       break;
     case "svb_money_market":
       rows = parseSvbMoneyMarketCsv(text);
