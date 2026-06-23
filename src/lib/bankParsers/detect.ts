@@ -229,6 +229,7 @@ export const detectAndParse = (
   rawText: string,
   filename: string,
   accounts?: AccountRow[],
+  mmAnchor?: MmAnchor | null,
 ): DetectionResult => {
   const text = normalizeText(rawText);
   const hint = filenameHint(filename);
