@@ -416,7 +416,12 @@ const TransactionImportTab = () => {
               <div className="text-xs">
                 Auto-detects Brex / SVB / Stripe formats · drop another file after each import
               </div>
-              <input type="file" accept=".csv,text/csv" className="hidden" onChange={onPick} />
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf"
+                className="hidden"
+                onChange={onPick}
+              />
             </label>
           </RoleGate>
         </CardContent>
