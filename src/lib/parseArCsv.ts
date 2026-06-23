@@ -22,8 +22,9 @@ export class ArCsvParseError extends Error {
 }
 
 const FORMAT_ERROR =
-  "This does not look like a QuickBooks A/R Aging Summary. " +
-  "Please export from Reports → Aging → A/R Aging Summary in QuickBooks.";
+  "This does not look like an A/R Aging Summary. " +
+  "Please export from Reports → Aging → A/R Aging Summary in QuickBooks, " +
+  "or the A/R Aging report in Rillet.";
 
 // ----- Aging bucket definitions ---------------------------------------------
 
