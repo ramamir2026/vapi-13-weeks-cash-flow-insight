@@ -46,6 +46,7 @@ import {
   extractClosingBalanceFromText,
   extractTextFromPdf,
 } from "@/lib/bankParsers/statement";
+import { ingestFile } from "@/lib/ingest";
 import {
   cardAssumptionKeyForMonth,
   extractCardStatementMonth,
