@@ -262,6 +262,7 @@ const TransactionImportTab = () => {
       setDetectedSource(result.source);
       setConfidence(result.confidence);
       setWarnings(result.warnings);
+      setReconAck(false);
       setRows(
         withRules.map((r) => ({
           ...r,
