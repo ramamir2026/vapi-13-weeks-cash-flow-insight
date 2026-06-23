@@ -34,6 +34,7 @@ import {
   type ParsedTxn,
 } from "@/lib/bankParsers/types";
 import { priorFridayISO } from "@/lib/bankParsers/deriveBalance";
+import { reconcileParsedRows, type ReconciliationResult } from "@/lib/bankParsers/reconcile";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAccounts } from "@/hooks/useAccounts";
